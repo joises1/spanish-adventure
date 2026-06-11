@@ -1,0 +1,9 @@
+dist/
+node_modules/
+outputs/
+work/
+.vercel/
+*.log
+.env
+.env.*
+!.env.example
