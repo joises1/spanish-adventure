@@ -1,4 +1,4 @@
-import { Compass, Lock, Search, Sparkles } from "lucide-react";
+import { Compass, Lock, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 import { LessonMap } from "../components/LessonMap";
 import { worlds } from "../data/worlds";
@@ -32,54 +32,43 @@ export function MapScreen({ onOpenWorld }: MapScreenProps) {
             <Compass size={16} aria-hidden="true" />
             Your Spanish trail
           </span>
-          <h1>Climb from world to world</h1>
-          <p>
-            Earn a star to light the next stop. Previously played worlds stay
-            open, and every little visit still counts.
-          </p>
+          <h1>Adventure map</h1>
         </div>
 
-        <div className="adventure-toolbar__actions">
-          <div className="trail-tip">
-            <Sparkles size={17} aria-hidden="true" />
-            <span>Start at the bottom and adventure upward</span>
-          </div>
+        <div className="map-search">
+          <label className="search-box">
+            <Search size={18} aria-hidden="true" />
+            <span className="sr-only">Find a world on the trail</span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Find a world..."
+            />
+          </label>
 
-          <div className="map-search">
-            <label className="search-box">
-              <Search size={18} aria-hidden="true" />
-              <span className="sr-only">Find a world on the trail</span>
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Find a world..."
-              />
-            </label>
-
-            {query && (
-              <div className="map-search__results">
-                {searchResults.map((world) => (
-                  <button
-                    type="button"
-                    key={world.id}
-                    onClick={() => jumpToWorld(world)}
-                  >
-                    <span aria-hidden="true">{world.icon}</span>
-                    <span>
-                      <strong>{world.name}</strong>
-                      <small>World {world.unit}</small>
-                    </span>
-                  </button>
-                ))}
-                {searchResults.length === 0 && (
-                  <span className="map-search__empty">
-                    <Lock size={15} />
-                    No world found
+          {query && (
+            <div className="map-search__results">
+              {searchResults.map((world) => (
+                <button
+                  type="button"
+                  key={world.id}
+                  onClick={() => jumpToWorld(world)}
+                >
+                  <span aria-hidden="true">{world.icon}</span>
+                  <span>
+                    <strong>{world.name}</strong>
+                    <small>World {world.unit}</small>
                   </span>
-                )}
-              </div>
-            )}
-          </div>
+                </button>
+              ))}
+              {searchResults.length === 0 && (
+                <span className="map-search__empty">
+                  <Lock size={15} />
+                  No world found
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
