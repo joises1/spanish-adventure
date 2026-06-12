@@ -4,11 +4,15 @@ import { ProgressBar } from "../components/ProgressBar";
 import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
 import {
+  createSessionId,
+} from "../engine/activityEngine";
+import {
   createLearningQueue,
   getStars,
   getWorldProgress,
 } from "../engine/game";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type { World } from "../types";
 
 type LearnModeProps = {
@@ -19,6 +23,7 @@ type LearnModeProps = {
 
 export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
   const { completeSession, markLearned, state } = useGame();
+  const [sessionId] = useState(() => createSessionId(world.id, "explore"));
   const [queue] = useState(() => createLearningQueue(world));
   const [index, setIndex] = useState(0);
   const [finished, setFinished] = useState(false);
@@ -29,8 +34,13 @@ export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
   const word = queue[index];
 
   useEffect(() => {
-    markLearned(world.id, word);
-  }, [markLearned, word, world.id]);
+    if (!word) return;
+    markLearned(
+      createProgressEventId(sessionId, "seen", word.id),
+      world.id,
+      word,
+    );
+  }, [markLearned, sessionId, word, world.id]);
 
   const move = (direction: number) => {
     setIndex((current) =>
@@ -44,7 +54,12 @@ export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
       queue.findIndex((item) => item.id === queueWord.id) === queueIndex,
   );
   const finishSession = () => {
-    completeSession(world.id, queue);
+    completeSession({
+      kind: "session-completion",
+      id: createProgressEventId(sessionId, "completion", "learn"),
+      worldId: world.id,
+      words: queue,
+    });
     setFinished(true);
   };
 

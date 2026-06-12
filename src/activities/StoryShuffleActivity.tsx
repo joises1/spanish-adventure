@@ -6,14 +6,18 @@ import {
   ListOrdered,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
-import { scoreToStars } from "../engine/activityEngine";
+import {
+  createSessionId,
+  scoreToStars,
+} from "../engine/activityEngine";
 import { getWorldProgress } from "../engine/game";
 import { generateStoryShuffleQuestion } from "../engine/narrativeEngine";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type { StorySentence, VocabularyWord, World } from "../types";
 import { getNewlyCollectedWords } from "./activityHelpers";
 
@@ -30,7 +34,10 @@ export function StoryShuffleActivity({
   onBack,
   onComplete,
 }: StoryShuffleActivityProps) {
-  const { completeActivity, recordActivityAnswer, state } = useGame();
+  const { completeActivity, state } = useGame();
+  const [sessionId] = useState(() =>
+    createSessionId(world.id, "story-shuffle"),
+  );
   const [question] = useState(() =>
     generateStoryShuffleQuestion(
       world,
@@ -46,6 +53,8 @@ export function StoryShuffleActivity({
     "Use the sequence clues to rebuild the story.",
   );
   const [finished, setFinished] = useState(false);
+  const [finalScore, setFinalScore] = useState(0);
+  const [orderChecked, setOrderChecked] = useState(false);
   const [sessionStartXp] = useState(() => state.xp);
   const [initialCollectedIds] = useState(
     () => new Set(getWorldProgress(state, world.id).collectedWordIds),
@@ -54,10 +63,12 @@ export function StoryShuffleActivity({
     question?.sourceWordIds
       .map((wordId) => world.words.find((word) => word.id === wordId))
       .filter((word): word is VocabularyWord => Boolean(word)) ?? [];
+  const completionStarted = useRef(false);
 
   const moveSentence = (sentenceIndex: number, direction: -1 | 1) => {
     const target = sentenceIndex + direction;
     if (target < 0 || target >= sentences.length || finished) return;
+    setOrderChecked(false);
     setSentences((current) => {
       const next = [...current];
       [next[sentenceIndex], next[target]] = [
@@ -69,40 +80,36 @@ export function StoryShuffleActivity({
   };
 
   const finishStory = (score: number, orderedSentences = sentences) => {
-    if (!question) return;
-    const correct = orderedSentences.every(
-      (sentence, sentenceIndex) =>
-        sentence.id === question.orderedItemIds?.[sentenceIndex],
-    );
-    recordActivityAnswer(
-      world.id,
-      "story-shuffle",
-      currentWords,
-      correct,
-    );
-    completeActivity(world.id, "story-shuffle", currentWords, score);
+    if (!question || completionStarted.current) return;
+    void orderedSentences;
+    completionStarted.current = true;
+    setFinalScore(score);
+    completeActivity({
+      kind: "activity-completion",
+      id: createProgressEventId(sessionId, "completion", "story-shuffle"),
+      worldId: world.id,
+      activityType: "story-shuffle",
+      words: currentWords,
+      score,
+      rewardXp: score >= 80 ? 10 : 2,
+    });
     setFinished(true);
   };
 
   const checkStory = () => {
-    if (!question) return;
+    if (!question || orderChecked || completionStarted.current) return;
+    setOrderChecked(true);
     const correct = sentences.every(
       (sentence, sentenceIndex) =>
         sentence.id === question.orderedItemIds?.[sentenceIndex],
     );
     if (correct) {
-      finishStory(attempts === 0 ? 100 : 80);
+      finishStory(attempts === 0 ? 100 : attempts === 1 ? 80 : 60);
       return;
     }
     setAttempts((current) => current + 1);
     setMessage(
       "Not quite yet. Look for Primero, Después, and Al final.",
-    );
-    recordActivityAnswer(
-      world.id,
-      "story-shuffle",
-      currentWords,
-      false,
     );
   };
 
@@ -135,7 +142,7 @@ export function StoryShuffleActivity({
   }
 
   if (finished) {
-    const score = attempts === 0 ? 100 : attempts === 1 ? 80 : 60;
+    const score = finalScore;
     return (
       <ModeShell
         world={world}
@@ -244,11 +251,17 @@ export function StoryShuffleActivity({
               className="secondary-button"
               type="button"
               onClick={revealAndFinish}
+              disabled={completionStarted.current}
             >
               Reveal order and finish
             </button>
           )}
-          <button className="primary-button" type="button" onClick={checkStory}>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={checkStory}
+            disabled={orderChecked || completionStarted.current}
+          >
             Check story
             <Check size={18} />
           </button>

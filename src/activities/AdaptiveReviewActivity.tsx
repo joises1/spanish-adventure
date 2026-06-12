@@ -1,16 +1,20 @@
 import { BookMarked, CalendarCheck, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MixedQuestionCard } from "../components/MixedQuestionCard";
 import { SessionResults } from "../components/SessionResults";
 import {
   generateAdaptiveReviewQuestions,
   selectAdaptiveReviewConcepts,
 } from "../engine/adaptiveReviewEngine";
-import { scoreToStars } from "../engine/activityEngine";
+import { createSessionId, scoreToStars } from "../engine/activityEngine";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
-import type { Course, VocabularyWord } from "../types";
-import { getSessionScore } from "./activityHelpers";
+import { createProgressEventId } from "../state/progressEvents";
+import type { Course } from "../types";
+import {
+  getQuestionConcepts,
+  getSessionScore,
+} from "./activityHelpers";
 
 type AdaptiveReviewActivityProps = {
   course: Course;
@@ -26,6 +30,12 @@ export function AdaptiveReviewActivity({
   onComplete,
 }: AdaptiveReviewActivityProps) {
   const { completeReview, recordActivityAnswer, state } = useGame();
+  const [sessionId] = useState(() =>
+    createSessionId(
+      course.id,
+      mode === "daily" ? "daily-review" : "mistake-review",
+    ),
+  );
   const [concepts] = useState(() =>
     selectAdaptiveReviewConcepts(
       course.worlds,
@@ -47,29 +57,35 @@ export function AdaptiveReviewActivity({
   const [sessionStartXp] = useState(() => state.xp);
   const question = questions[index];
   const shellWorld = concepts[0]?.world ?? course.worlds[0];
+  const submittedQuestionIds = useRef(new Set<string>());
+  const completionStarted = useRef(false);
 
   const recordResult = (isCorrect: boolean) => {
-    if (!question) return;
-    const concept = concepts.find(
-      (item) => item.word.id === question.sourceWordIds[0],
-    );
-    const words: VocabularyWord[] = concept ? [concept.word] : [];
-    recordActivityAnswer(
-      question.sourceWorldId ?? concept?.world.id ?? shellWorld.id,
-      mode === "daily" ? "daily-review" : "mistake-review",
-      words,
+    if (!question || submittedQuestionIds.current.has(question.id)) return;
+    submittedQuestionIds.current.add(question.id);
+    recordActivityAnswer({
+      kind: "answer",
+      id: createProgressEventId(sessionId, "answer", question.id),
+      activityType:
+        mode === "daily" ? "daily-review" : "mistake-review",
+      concepts: getQuestionConcepts(course.worlds, shellWorld, question),
       isCorrect,
-    );
+    });
     setCorrectCount((current) => current + (isCorrect ? 1 : 0));
   };
 
   const continueSession = () => {
+    if (completionStarted.current) return;
     if (index >= questions.length - 1) {
       const score = getSessionScore(correctCount, questions.length);
-      completeReview(
-        mode === "daily" ? "daily-review" : "mistake-review",
+      completionStarted.current = true;
+      completeReview({
+        kind: "review-completion",
+        id: createProgressEventId(sessionId, "completion", mode),
+        activityType:
+          mode === "daily" ? "daily-review" : "mistake-review",
         score,
-      );
+      });
       setFinished(true);
       return;
     }

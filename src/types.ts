@@ -124,6 +124,21 @@ export type ActivityQuestion = {
   isRetry?: boolean;
 };
 
+export type ProgressConcept = {
+  word: VocabularyWord;
+  worldId: string;
+};
+
+export type ProcessedProgressEvent = {
+  kind:
+    | "answer"
+    | "seen"
+    | "activity-completion"
+    | "session-completion"
+    | "review-completion";
+  processedAt: string;
+};
+
 export type ActivityDefinition = {
   type: ActivityType;
   title: string;
@@ -198,7 +213,7 @@ export type WorldProgress = {
 };
 
 export type GameState = {
-  version: 3;
+  version: 4;
   xp: number;
   streak: number;
   lastActiveDate?: string;
@@ -207,4 +222,5 @@ export type GameState = {
   activities: Record<string, ActivityProgress>;
   mastery: Record<string, ConceptMastery>;
   mistakes: Record<string, MistakeRecord>;
+  processedEvents: Record<string, ProcessedProgressEvent>;
 };

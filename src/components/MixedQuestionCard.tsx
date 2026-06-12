@@ -7,7 +7,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { normalizeSentence } from "../engine/activityEngine";
 import type { ActivityQuestion, ActivityToken } from "../types";
 import { SpeakerButton } from "./SpeakerButton";
@@ -28,6 +28,9 @@ export function MixedQuestionCard({
   const [selectedChoiceId, setSelectedChoiceId] = useState<string>();
   const [selectedTokens, setSelectedTokens] = useState<ActivityToken[]>([]);
   const [answered, setAnswered] = useState(false);
+  const [continuing, setContinuing] = useState(false);
+  const submittedRef = useRef(false);
+  const continuingRef = useRef(false);
   const builtSentence = selectedTokens.map((token) => token.text).join(" ");
   const isSentence = question.kind === "sentence-builder";
   const isCorrect = isSentence
@@ -36,7 +39,8 @@ export function MixedQuestionCard({
     : selectedChoiceId === question.correctChoiceId;
 
   const choose = (choiceId: string) => {
-    if (answered) return;
+    if (answered || submittedRef.current) return;
+    submittedRef.current = true;
     const correct = choiceId === question.correctChoiceId;
     setSelectedChoiceId(choiceId);
     setAnswered(true);
@@ -56,7 +60,14 @@ export function MixedQuestionCard({
   };
 
   const checkSentence = () => {
-    if (answered || selectedTokens.length === 0) return;
+    if (
+      answered ||
+      submittedRef.current ||
+      selectedTokens.length === 0
+    ) {
+      return;
+    }
+    submittedRef.current = true;
     const correct =
       normalizeSentence(builtSentence) === normalizeSentence(question.answer);
     setAnswered(true);
@@ -66,6 +77,12 @@ export function MixedQuestionCard({
   const selectedIds = new Set(selectedTokens.map((token) => token.id));
   const availableTokens =
     question.tokens?.filter((token) => !selectedIds.has(token.id)) ?? [];
+  const continueOnce = () => {
+    if (continuingRef.current) return;
+    continuingRef.current = true;
+    setContinuing(true);
+    onContinue();
+  };
 
   return (
     <section className="mixed-question-card">
@@ -227,7 +244,12 @@ export function MixedQuestionCard({
             <strong>{isCorrect ? "Lovely work!" : "Here is the correction:"}</strong>
             <span>{isCorrect ? question.explanation : question.explanation}</span>
           </div>
-          <button className="primary-button" type="button" onClick={onContinue}>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={continueOnce}
+            disabled={continuing}
+          >
             {isLast ? "See result" : "Continue"}
             <ArrowRight size={18} />
           </button>

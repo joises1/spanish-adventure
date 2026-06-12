@@ -3,11 +3,15 @@ import { useEffect, useState } from "react";
 import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
 import {
+  createSessionId,
+} from "../engine/activityEngine";
+import {
   createLearningQueue,
   getStars,
   getWorldProgress,
 } from "../engine/game";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type { World } from "../types";
 import { ModeShell } from "./LearnMode";
 
@@ -23,6 +27,9 @@ export function FlashcardMode({
   onComplete,
 }: FlashcardModeProps) {
   const { completeSession, markLearned, state } = useGame();
+  const [sessionId] = useState(() =>
+    createSessionId(world.id, "explore"),
+  );
   const [queue] = useState(() => createLearningQueue(world));
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -34,8 +41,13 @@ export function FlashcardMode({
   const word = queue[index];
 
   useEffect(() => {
-    markLearned(world.id, word);
-  }, [markLearned, word, world.id]);
+    if (!word) return;
+    markLearned(
+      createProgressEventId(sessionId, "seen", word.id),
+      world.id,
+      word,
+    );
+  }, [markLearned, sessionId, word, world.id]);
 
   const move = (direction: number) => {
     setFlipped(false);
@@ -50,7 +62,12 @@ export function FlashcardMode({
       queue.findIndex((item) => item.id === queueWord.id) === queueIndex,
   );
   const finishSession = () => {
-    completeSession(world.id, queue);
+    completeSession({
+      kind: "session-completion",
+      id: createProgressEventId(sessionId, "completion", "flashcards"),
+      worldId: world.id,
+      words: queue,
+    });
     setFinished(true);
   };
 

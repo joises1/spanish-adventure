@@ -7,18 +7,24 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
-import { scoreToStars } from "../engine/activityEngine";
+import {
+  createSessionId,
+  scoreToStars,
+} from "../engine/activityEngine";
 import { generateDialogueQuestions } from "../engine/narrativeEngine";
 import { getWorldProgress } from "../engine/game";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
+import {
+  createProgressEventId,
+} from "../state/progressEvents";
 import type { DialogueTurn, VocabularyWord, World } from "../types";
 import {
   getNewlyCollectedWords,
-  getQuestionWords,
+  getQuestionConcepts,
   getSessionScore,
   getSessionWords,
 } from "./activityHelpers";
@@ -37,6 +43,9 @@ export function DialogueActivity({
   onComplete,
 }: DialogueActivityProps) {
   const { completeActivity, recordActivityAnswer, state } = useGame();
+  const [sessionId] = useState(() =>
+    createSessionId(world.id, "dialogue"),
+  );
   const [questions] = useState(() =>
     generateDialogueQuestions(
       world,
@@ -59,18 +68,28 @@ export function DialogueActivity({
   );
   const question = questions[index];
   const sessionWords = getSessionWords(world, questions);
+  const answeredQuestionIds = useRef(new Set<string>());
+  const completionStarted = useRef(false);
 
   const submitResult = (isCorrect: boolean) => {
-    if (!question || answered) return;
+    if (
+      !question ||
+      answered ||
+      answeredQuestionIds.current.has(question.id)
+    ) {
+      return;
+    }
+    answeredQuestionIds.current.add(question.id);
     setAnswered(true);
     setIsCurrentCorrect(isCorrect);
     setCorrectCount((current) => current + (isCorrect ? 1 : 0));
-    recordActivityAnswer(
-      world.id,
-      "dialogue",
-      getQuestionWords(world, question),
+    recordActivityAnswer({
+      kind: "answer",
+      id: createProgressEventId(sessionId, "answer", question.id),
+      activityType: "dialogue",
+      concepts: getQuestionConcepts([world], world, question),
       isCorrect,
-    );
+    });
   };
 
   const choose = (choiceId: string) => {
@@ -100,9 +119,18 @@ export function DialogueActivity({
   };
 
   const next = () => {
+    if (completionStarted.current) return;
     if (index >= questions.length - 1) {
       const score = getSessionScore(correctCount, questions.length);
-      completeActivity(world.id, "dialogue", sessionWords, score);
+      completionStarted.current = true;
+      completeActivity({
+        kind: "activity-completion",
+        id: createProgressEventId(sessionId, "completion", "dialogue"),
+        worldId: world.id,
+        activityType: "dialogue",
+        words: sessionWords,
+        score,
+      });
       setFinished(true);
       return;
     }

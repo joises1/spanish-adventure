@@ -18,10 +18,11 @@ import {
 import { getWorldProgress } from "../engine/game";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type { ActivityToken, World } from "../types";
 import {
   getNewlyCollectedWords,
-  getQuestionWords,
+  getQuestionConcepts,
   getSessionScore,
   getSessionWords,
 } from "./activityHelpers";
@@ -53,6 +54,8 @@ export function SentenceBuilderActivity({
     () => new Set(getWorldProgress(state, world.id).collectedWordIds),
   );
   const retryCounts = useRef<Record<string, number>>({});
+  const submittedQuestionIds = useRef(new Set<string>());
+  const completionStarted = useRef(false);
   const question = queue[index];
   const builtSentence = selectedTokens.map((token) => token.text).join(" ");
   const isCorrect =
@@ -73,18 +76,27 @@ export function SentenceBuilderActivity({
   };
 
   const checkSentence = () => {
-    if (!question || checked || selectedTokens.length === 0) return;
+    if (
+      !question ||
+      checked ||
+      selectedTokens.length === 0 ||
+      submittedQuestionIds.current.has(question.id)
+    ) {
+      return;
+    }
+    submittedQuestionIds.current.add(question.id);
     const correct =
       normalizeSentence(builtSentence) === normalizeSentence(question.answer);
     setChecked(true);
     setAnsweredCount((current) => current + 1);
     setCorrectCount((current) => current + (correct ? 1 : 0));
-    recordActivityAnswer(
-      world.id,
-      "sentence-builder",
-      getQuestionWords(world, question),
-      correct,
-    );
+    recordActivityAnswer({
+      kind: "answer",
+      id: createProgressEventId(session.id, "answer", question.id),
+      activityType: "sentence-builder",
+      concepts: getQuestionConcepts([world], world, question),
+      isCorrect: correct,
+    });
 
     if (!correct && !question.isRetry) {
       const nextRetry = (retryCounts.current[question.id] ?? 0) + 1;
@@ -101,9 +113,22 @@ export function SentenceBuilderActivity({
   };
 
   const next = () => {
+    if (completionStarted.current) return;
     if (index >= queue.length - 1) {
       const score = getSessionScore(correctCount, answeredCount);
-      completeActivity(world.id, "sentence-builder", sessionWords, score);
+      completionStarted.current = true;
+      completeActivity({
+        kind: "activity-completion",
+        id: createProgressEventId(
+          session.id,
+          "completion",
+          "sentence-builder",
+        ),
+        worldId: world.id,
+        activityType: "sentence-builder",
+        words: sessionWords,
+        score,
+      });
       setFinished(true);
       return;
     }

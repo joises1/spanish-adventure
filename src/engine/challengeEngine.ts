@@ -105,9 +105,11 @@ const storyComprehensionQuestion = (
     semanticKey: `${id}:${normalizeText(correctWord.es)}`,
     activityType: "unit-challenge",
     kind: "story-comprehension",
-    conceptIds: story.flatMap((sentence) => sentence.sourceWordIds),
-    sourceWordIds: story.flatMap((sentence) => sentence.sourceWordIds),
-    sourceWorldId: world.id,
+    conceptIds: [correctWord.id],
+    sourceWordIds: [correctWord.id],
+    sourceWorldId: world.words.some((word) => word.id === correctWord.id)
+      ? world.id
+      : undefined,
     skill: "story",
     prompt: "Which expression does Elena remember at the end?",
     answer: correctWord.es,

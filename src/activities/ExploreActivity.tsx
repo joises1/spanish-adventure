@@ -4,6 +4,7 @@ import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
 import { createActivitySession } from "../engine/activityEngine";
 import { getWorldProgress } from "../engine/game";
+import { createProgressEventId } from "../state/progressEvents";
 import { useGame } from "../state/GameContext";
 import type { World } from "../types";
 import { ModeShell } from "../screens/LearnMode";
@@ -33,23 +34,35 @@ export function ExploreActivity({
     () => new Set(getWorldProgress(state, world.id).collectedWordIds),
   );
   const recordedIds = useRef(new Set<string>());
+  const completionStarted = useRef(false);
   const question = session.questions[index];
   const sessionWords = getSessionWords(world, session.questions);
 
   const recordSeen = () => {
     if (!question || recordedIds.current.has(question.id)) return;
     recordedIds.current.add(question.id);
-    recordActivitySeen(
-      world.id,
-      "explore",
-      getQuestionWords(world, question),
-    );
+    recordActivitySeen({
+      kind: "seen",
+      id: createProgressEventId(session.id, "seen", question.id),
+      worldId: world.id,
+      activityType: "explore",
+      words: getQuestionWords(world, question),
+    });
   };
 
   const moveNext = () => {
+    if (completionStarted.current) return;
     recordSeen();
     if (index >= session.questions.length - 1) {
-      completeActivity(world.id, "explore", sessionWords, 100);
+      completionStarted.current = true;
+      completeActivity({
+        kind: "activity-completion",
+        id: createProgressEventId(session.id, "completion", "explore"),
+        worldId: world.id,
+        activityType: "explore",
+        words: sessionWords,
+        score: 100,
+      });
       setFinished(true);
       return;
     }

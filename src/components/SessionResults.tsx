@@ -1,4 +1,5 @@
 import { ArrowRight, BookOpenCheck, Sparkles, Star } from "lucide-react";
+import { useRef, useState } from "react";
 import type { VocabularyWord } from "../types";
 
 type SessionResultsProps = {
@@ -22,6 +23,15 @@ export function SessionResults({
   onPracticeAgain,
   starsLabel = "World stars",
 }: SessionResultsProps) {
+  const [isLeaving, setIsLeaving] = useState(false);
+  const actionStarted = useRef(false);
+  const runOnce = (action: () => void) => {
+    if (actionStarted.current) return;
+    actionStarted.current = true;
+    setIsLeaving(true);
+    action();
+  };
+
   return (
     <section className="results-card session-results">
       <span className="results-card__icon">
@@ -71,11 +81,19 @@ export function SessionResults({
 
       <div className="results-actions">
         {onPracticeAgain && (
-          <button className="secondary-button" onClick={onPracticeAgain}>
+          <button
+            className="secondary-button"
+            onClick={() => runOnce(onPracticeAgain)}
+            disabled={isLeaving}
+          >
             Practice again
           </button>
         )}
-        <button className="primary-button" onClick={onContinue}>
+        <button
+          className="primary-button"
+          onClick={() => runOnce(onContinue)}
+          disabled={isLeaving}
+        >
           Continue to map
           <ArrowRight size={18} aria-hidden="true" />
         </button>

@@ -16,10 +16,11 @@ import {
 import { getWorldProgress } from "../engine/game";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type { World } from "../types";
 import {
   getNewlyCollectedWords,
-  getQuestionWords,
+  getQuestionConcepts,
   getSessionScore,
   getSessionWords,
 } from "./activityHelpers";
@@ -48,22 +49,32 @@ export function ListeningActivity({
     () => new Set(getWorldProgress(state, world.id).collectedWordIds),
   );
   const retryCounts = useRef<Record<string, number>>({});
+  const submittedQuestionIds = useRef(new Set<string>());
+  const completionStarted = useRef(false);
   const question = queue[index];
   const sessionWords = getSessionWords(world, queue);
   const isCorrect = selectedChoiceId === question?.correctChoiceId;
 
   const choose = (choiceId: string) => {
-    if (!question || selectedChoiceId) return;
+    if (
+      !question ||
+      selectedChoiceId ||
+      submittedQuestionIds.current.has(question.id)
+    ) {
+      return;
+    }
+    submittedQuestionIds.current.add(question.id);
     const correct = choiceId === question.correctChoiceId;
     setSelectedChoiceId(choiceId);
     setAnsweredCount((current) => current + 1);
     setCorrectCount((current) => current + (correct ? 1 : 0));
-    recordActivityAnswer(
-      world.id,
-      "listening",
-      getQuestionWords(world, question),
-      correct,
-    );
+    recordActivityAnswer({
+      kind: "answer",
+      id: createProgressEventId(session.id, "answer", question.id),
+      activityType: "listening",
+      concepts: getQuestionConcepts([world], world, question),
+      isCorrect: correct,
+    });
 
     if (!correct && !question.isRetry) {
       const nextRetry = (retryCounts.current[question.id] ?? 0) + 1;
@@ -80,9 +91,18 @@ export function ListeningActivity({
   };
 
   const next = () => {
+    if (completionStarted.current) return;
     if (index >= queue.length - 1) {
       const score = getSessionScore(correctCount, answeredCount);
-      completeActivity(world.id, "listening", sessionWords, score);
+      completionStarted.current = true;
+      completeActivity({
+        kind: "activity-completion",
+        id: createProgressEventId(session.id, "completion", "listening"),
+        worldId: world.id,
+        activityType: "listening",
+        words: sessionWords,
+        score,
+      });
       setFinished(true);
       return;
     }

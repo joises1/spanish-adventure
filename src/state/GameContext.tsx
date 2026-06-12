@@ -7,54 +7,47 @@ import {
   useMemo,
   useState,
 } from "react";
-import { getActivityProgressKey, scoreToStars } from "../engine/activityEngine";
 import type {
-  ActivityType,
-  ConceptMastery,
   CourseId,
   GameState,
+  ProgressConcept,
   VocabularyWord,
 } from "../types";
 import { useCourse } from "./CourseContext";
 import {
-  createEmptyWorldProgress,
   createInitialGameState,
   getCourseStorageKey,
   loadCourseGameState,
 } from "./progressState";
+import {
+  applyProgressEvent,
+  type ActivityCompletionProgressEvent,
+  type AnswerProgressEvent,
+  type ReviewCompletionProgressEvent,
+  type SeenProgressEvent,
+  type SessionCompletionProgressEvent,
+} from "./progressEvents";
 
 type CourseStates = Record<CourseId, GameState>;
 
 type GameContextValue = {
   state: GameState;
-  markLearned: (worldId: string, word: VocabularyWord) => void;
+  markLearned: (
+    eventId: string,
+    worldId: string,
+    word: VocabularyWord,
+  ) => void;
   recordAnswer: (
+    eventId: string,
     worldId: string,
     word: VocabularyWord,
     isCorrect: boolean,
   ) => void;
-  completeSession: (worldId: string, words: VocabularyWord[]) => void;
-  recordActivitySeen: (
-    worldId: string,
-    activityType: ActivityType,
-    words: VocabularyWord[],
-  ) => void;
-  recordActivityAnswer: (
-    worldId: string,
-    activityType: ActivityType,
-    words: VocabularyWord[],
-    isCorrect: boolean,
-  ) => void;
-  completeActivity: (
-    worldId: string,
-    activityType: ActivityType,
-    words: VocabularyWord[],
-    score: number,
-  ) => void;
-  completeReview: (
-    activityType: "daily-review" | "mistake-review",
-    score: number,
-  ) => void;
+  completeSession: (event: SessionCompletionProgressEvent) => void;
+  recordActivitySeen: (event: SeenProgressEvent) => void;
+  recordActivityAnswer: (event: AnswerProgressEvent) => void;
+  completeActivity: (event: ActivityCompletionProgressEvent) => void;
+  completeReview: (event: ReviewCompletionProgressEvent) => void;
   resetProgress: () => void;
 };
 
@@ -91,317 +84,72 @@ export function GameProvider({ children }: PropsWithChildren) {
   );
 
   const markLearned = useCallback(
-    (worldId: string, word: VocabularyWord) => {
-      updateActiveState((current) => {
-        const worldProgress =
-          current.worlds[worldId] ?? createEmptyWorldProgress();
-        if (worldProgress.learnedWordIds.includes(word.id)) return current;
-
-        return {
-          ...current,
-          xp: current.xp + 2,
-          worlds: {
-            ...current.worlds,
-            [worldId]: {
-              ...worldProgress,
-              learnedWordIds: [...worldProgress.learnedWordIds, word.id],
-            },
-          },
-        };
-      });
+    (eventId: string, worldId: string, word: VocabularyWord) => {
+      updateActiveState((current) =>
+        applyProgressEvent(current, {
+          kind: "seen",
+          id: eventId,
+          worldId,
+          activityType: "explore",
+          words: [word],
+        }),
+      );
     },
     [updateActiveState],
   );
 
   const recordAnswer = useCallback(
-    (worldId: string, word: VocabularyWord, isCorrect: boolean) => {
-      updateActiveState((current) => {
-        const wordRecord = current.words[word.id] ?? {
-          correct: 0,
-          incorrect: 0,
-        };
-        const worldProgress =
-          current.worlds[worldId] ?? createEmptyWorldProgress();
-        const learnedWordIds = worldProgress.learnedWordIds.includes(word.id)
-          ? worldProgress.learnedWordIds
-          : [...worldProgress.learnedWordIds, word.id];
-
-        return {
-          ...current,
-          xp: current.xp + (isCorrect ? 10 : 2),
-          words: {
-            ...current.words,
-            [word.id]: {
-              correct: wordRecord.correct + (isCorrect ? 1 : 0),
-              incorrect: wordRecord.incorrect + (isCorrect ? 0 : 1),
-              lastSeen: new Date().toISOString(),
-            },
-          },
-          worlds: {
-            ...current.worlds,
-            [worldId]: {
-              ...worldProgress,
-              learnedWordIds,
-              quizAnswers: worldProgress.quizAnswers + 1,
-              quizCorrect: worldProgress.quizCorrect + (isCorrect ? 1 : 0),
-            },
-          },
-        };
-      });
+    (
+      eventId: string,
+      worldId: string,
+      word: VocabularyWord,
+      isCorrect: boolean,
+    ) => {
+      const concepts: ProgressConcept[] = [{ word, worldId }];
+      updateActiveState((current) =>
+        applyProgressEvent(current, {
+          kind: "answer",
+          id: eventId,
+          activityType: "multiple-choice",
+          concepts,
+          isCorrect,
+        }),
+      );
     },
     [updateActiveState],
   );
 
   const completeSession = useCallback(
-    (worldId: string, words: VocabularyWord[]) => {
-      updateActiveState((current) => {
-        const worldProgress =
-          current.worlds[worldId] ?? createEmptyWorldProgress();
-        const collectedWordIds = [
-          ...new Set([
-            ...worldProgress.collectedWordIds,
-            ...words.map((word) => word.id),
-          ]),
-        ];
-
-        return {
-          ...current,
-          worlds: {
-            ...current.worlds,
-            [worldId]: {
-              ...worldProgress,
-              collectedWordIds,
-              completedSessions: worldProgress.completedSessions + 1,
-            },
-          },
-        };
-      });
+    (event: SessionCompletionProgressEvent) => {
+      updateActiveState((current) => applyProgressEvent(current, event));
     },
     [updateActiveState],
   );
 
   const recordActivityAnswer = useCallback(
-    (
-      worldId: string,
-      _activityType: ActivityType,
-      words: VocabularyWord[],
-      isCorrect: boolean,
-    ) => {
-      void _activityType;
-      updateActiveState((current) => {
-        const now = new Date().toISOString();
-        const worldProgress =
-          current.worlds[worldId] ?? createEmptyWorldProgress();
-        const uniqueWords = words.filter(
-          (word, index, allWords) =>
-            allWords.findIndex((item) => item.id === word.id) === index,
-        );
-        const learnedWordIds = [
-          ...new Set([
-            ...worldProgress.learnedWordIds,
-            ...uniqueWords.map((word) => word.id),
-          ]),
-        ];
-        const nextWordRecords = { ...current.words };
-        const nextMastery = { ...current.mastery };
-        const nextMistakes = { ...current.mistakes };
-
-        uniqueWords.forEach((word) => {
-          const record = nextWordRecords[word.id] ?? {
-            correct: 0,
-            incorrect: 0,
-          };
-          nextWordRecords[word.id] = {
-            correct: record.correct + (isCorrect ? 1 : 0),
-            incorrect: record.incorrect + (isCorrect ? 0 : 1),
-            lastSeen: now,
-          };
-
-          const mastery: ConceptMastery = nextMastery[word.id] ?? {
-            seenCount: 0,
-            correctCount: 0,
-            incorrectCount: 0,
-            masteryEstimate: 0,
-          };
-          const correctCount = mastery.correctCount + (isCorrect ? 1 : 0);
-          const incorrectCount =
-            mastery.incorrectCount + (isCorrect ? 0 : 1);
-          const seenCount = mastery.seenCount + 1;
-          nextMastery[word.id] = {
-            seenCount,
-            correctCount,
-            incorrectCount,
-            lastPracticedAt: now,
-            masteryEstimate: Math.round(
-              (correctCount / Math.max(1, correctCount + incorrectCount)) * 100,
-            ),
-          };
-
-          if (!isCorrect) {
-            const mistake = nextMistakes[word.id];
-            nextMistakes[word.id] = {
-              conceptId: word.id,
-              worldId,
-              activityType: _activityType,
-              incorrectCount: (mistake?.incorrectCount ?? 0) + 1,
-              lastIncorrectAt: now,
-              correctedAnswer: word.en,
-              example: word.example,
-            };
-          }
-        });
-
-        return {
-          ...current,
-          xp: current.xp + (isCorrect ? 10 : 2),
-          words: nextWordRecords,
-          mastery: nextMastery,
-          mistakes: nextMistakes,
-          worlds: {
-            ...current.worlds,
-            [worldId]: {
-              ...worldProgress,
-              learnedWordIds,
-              quizAnswers: worldProgress.quizAnswers + 1,
-              quizCorrect: worldProgress.quizCorrect + (isCorrect ? 1 : 0),
-            },
-          },
-        };
-      });
+    (event: AnswerProgressEvent) => {
+      updateActiveState((current) => applyProgressEvent(current, event));
     },
     [updateActiveState],
   );
 
   const recordActivitySeen = useCallback(
-    (
-      worldId: string,
-      _activityType: ActivityType,
-      words: VocabularyWord[],
-    ) => {
-      void _activityType;
-      updateActiveState((current) => {
-        const now = new Date().toISOString();
-        const worldProgress =
-          current.worlds[worldId] ?? createEmptyWorldProgress();
-        const uniqueWords = words.filter(
-          (word, index, allWords) =>
-            allWords.findIndex((item) => item.id === word.id) === index,
-        );
-        const newWords = uniqueWords.filter(
-          (word) => !worldProgress.learnedWordIds.includes(word.id),
-        );
-        const nextMastery = { ...current.mastery };
-
-        uniqueWords.forEach((word) => {
-          const mastery: ConceptMastery = nextMastery[word.id] ?? {
-            seenCount: 0,
-            correctCount: 0,
-            incorrectCount: 0,
-            masteryEstimate: 0,
-          };
-          nextMastery[word.id] = {
-            ...mastery,
-            seenCount: mastery.seenCount + 1,
-            lastPracticedAt: now,
-          };
-        });
-
-        return {
-          ...current,
-          xp: current.xp + newWords.length * 2,
-          mastery: nextMastery,
-          worlds: {
-            ...current.worlds,
-            [worldId]: {
-              ...worldProgress,
-              learnedWordIds: [
-                ...worldProgress.learnedWordIds,
-                ...newWords.map((word) => word.id),
-              ],
-            },
-          },
-        };
-      });
+    (event: SeenProgressEvent) => {
+      updateActiveState((current) => applyProgressEvent(current, event));
     },
     [updateActiveState],
   );
 
   const completeActivity = useCallback(
-    (
-      worldId: string,
-      activityType: ActivityType,
-      words: VocabularyWord[],
-      score: number,
-    ) => {
-      updateActiveState((current) => {
-        const worldProgress =
-          current.worlds[worldId] ?? createEmptyWorldProgress();
-        const collectedWordIds = [
-          ...new Set([
-            ...worldProgress.collectedWordIds,
-            ...words.map((word) => word.id),
-          ]),
-        ];
-        const activityKey = getActivityProgressKey(worldId, activityType);
-        const activityProgress = current.activities[activityKey] ?? {
-          completedSessions: 0,
-          bestScore: 0,
-          bestStars: 0,
-        };
-
-        return {
-          ...current,
-          worlds: {
-            ...current.worlds,
-            [worldId]: {
-              ...worldProgress,
-              collectedWordIds,
-              completedSessions: worldProgress.completedSessions + 1,
-            },
-          },
-          activities: {
-            ...current.activities,
-            [activityKey]: {
-              completedSessions: activityProgress.completedSessions + 1,
-              bestScore: Math.max(activityProgress.bestScore, score),
-              bestStars: Math.max(
-                activityProgress.bestStars,
-                scoreToStars(score),
-              ),
-              lastCompletedAt: new Date().toISOString(),
-            },
-          },
-        };
-      });
+    (event: ActivityCompletionProgressEvent) => {
+      updateActiveState((current) => applyProgressEvent(current, event));
     },
     [updateActiveState],
   );
 
   const completeReview = useCallback(
-    (
-      activityType: "daily-review" | "mistake-review",
-      score: number,
-    ) => {
-      updateActiveState((current) => {
-        const activityKey = `review:${activityType}`;
-        const progress = current.activities[activityKey] ?? {
-          completedSessions: 0,
-          bestScore: 0,
-          bestStars: 0,
-        };
-        return {
-          ...current,
-          activities: {
-            ...current.activities,
-            [activityKey]: {
-              completedSessions: progress.completedSessions + 1,
-              bestScore: Math.max(progress.bestScore, score),
-              bestStars: Math.max(progress.bestStars, scoreToStars(score)),
-              lastCompletedAt: new Date().toISOString(),
-            },
-          },
-        };
-      });
+    (event: ReviewCompletionProgressEvent) => {
+      updateActiveState((current) => applyProgressEvent(current, event));
     },
     [updateActiveState],
   );

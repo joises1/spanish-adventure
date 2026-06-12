@@ -1,5 +1,5 @@
 import { Check, Puzzle, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { SessionResults } from "../components/SessionResults";
 import {
   createActivitySession,
@@ -9,10 +9,11 @@ import {
 import { getWorldProgress } from "../engine/game";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type { ActivityQuestion, World } from "../types";
 import {
   getNewlyCollectedWords,
-  getQuestionWords,
+  getQuestionConcepts,
   getSessionScore,
   getSessionWords,
 } from "./activityHelpers";
@@ -42,11 +43,14 @@ export function MatchingActivity({
   const [feedback, setFeedback] = useState("Choose one card from each side.");
   const [mistakes, setMistakes] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [sessionStartXp] = useState(() => state.xp);
   const [initialCollectedIds] = useState(
     () => new Set(getWorldProgress(state, world.id).collectedWordIds),
   );
   const sessionWords = getSessionWords(world, session.questions);
+  const processingRef = useRef(false);
+  const completionStarted = useRef(false);
   const questionById = useMemo(
     () =>
       new Map<string, ActivityQuestion>(
@@ -74,7 +78,13 @@ export function MatchingActivity({
   );
 
   const chooseCard = (card: MatchCard) => {
-    if (matchedIds.has(card.questionId)) return;
+    if (
+      processingRef.current ||
+      completionStarted.current ||
+      matchedIds.has(card.questionId)
+    ) {
+      return;
+    }
     if (!selected || selected.side === card.side) {
       setSelected(card);
       setFeedback(
@@ -85,21 +95,32 @@ export function MatchingActivity({
       return;
     }
 
-    const spanishCard = selected.side === "es" ? selected : card;
-    const spanishQuestion = questionById.get(spanishCard.questionId);
-    if (!spanishQuestion) return;
+    const targetQuestion = questionById.get(selected.questionId);
+    if (!targetQuestion) return;
+    processingRef.current = true;
+    setIsProcessing(true);
     const isMatch = selected.questionId === card.questionId;
-    recordActivityAnswer(
-      world.id,
-      "matching",
-      getQuestionWords(world, spanishQuestion),
-      isMatch,
-    );
+    const pairId = [selected.questionId, card.questionId].sort().join("+");
+    recordActivityAnswer({
+      kind: "answer",
+      id: createProgressEventId(
+        session.id,
+        "answer",
+        isMatch ? `${targetQuestion.id}:matched` : `pair:${pairId}`,
+      ),
+      activityType: "matching",
+      concepts: getQuestionConcepts([world], world, targetQuestion),
+      isCorrect: isMatch,
+    });
 
     if (!isMatch) {
       setMistakes((current) => current + 1);
       setFeedback("Not this pair. Take a breath and try another match.");
       setSelected(undefined);
+      window.setTimeout(() => {
+        processingRef.current = false;
+        setIsProcessing(false);
+      }, 120);
       return;
     }
 
@@ -114,9 +135,22 @@ export function MatchingActivity({
         session.questions.length,
         session.questions.length + mistakes,
       );
-      completeActivity(world.id, "matching", sessionWords, score);
+      completionStarted.current = true;
+      completeActivity({
+        kind: "activity-completion",
+        id: createProgressEventId(session.id, "completion", "matching"),
+        worldId: world.id,
+        activityType: "matching",
+        words: sessionWords,
+        score,
+      });
       setFinished(true);
+      return;
     }
+    window.setTimeout(() => {
+      processingRef.current = false;
+      setIsProcessing(false);
+    }, 120);
   };
 
   if (session.questions.length === 0) {
@@ -197,7 +231,7 @@ export function MatchingActivity({
                 } ${isMatched ? "match-card--matched" : ""}`}
                 type="button"
                 onClick={() => chooseCard(card)}
-                disabled={isMatched}
+                disabled={isMatched || isProcessing}
                 aria-pressed={isSelected}
               >
                 <small>{card.side === "es" ? "ES" : "EN"}</small>

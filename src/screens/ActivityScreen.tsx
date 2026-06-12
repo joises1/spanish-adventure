@@ -6,6 +6,8 @@ import { SentenceBuilderActivity } from "../activities/SentenceBuilderActivity";
 import { StoryShuffleActivity } from "../activities/StoryShuffleActivity";
 import { UnitChallengeActivity } from "../activities/UnitChallengeActivity";
 import { getCompletedPreviousWords } from "../engine/courseScope";
+import { getActivityAvailability } from "../engine/activityAvailability";
+import { ModeShell } from "./LearnMode";
 import { useGame } from "../state/GameContext";
 import type { ActivityType, Course, World } from "../types";
 
@@ -30,6 +32,27 @@ export function ActivityScreen({
     course.worlds,
     state,
   );
+  const availability = getActivityAvailability(world, activityType);
+
+  if (!availability.available) {
+    return (
+      <ModeShell
+        world={world}
+        title="Activity unavailable"
+        subtitle="This unit needs more structured learning material"
+        onBack={onBack}
+        icon={<Sparkles size={19} />}
+      >
+        <section className="activity-empty">
+          <h2>Not ready for this unit</h2>
+          <p>{availability.reason}</p>
+          <button className="primary-button" type="button" onClick={onBack}>
+            Back to activities
+          </button>
+        </section>
+      </ModeShell>
+    );
+  }
 
   switch (activityType) {
     case "explore":
@@ -85,6 +108,7 @@ export function ActivityScreen({
     case "unit-challenge":
       return (
         <UnitChallengeActivity
+          course={course}
           world={world}
           previouslyLearnedWords={previouslyLearnedWords}
           onBack={onBack}
@@ -95,3 +119,4 @@ export function ActivityScreen({
       return null;
   }
 }
+import { Sparkles } from "lucide-react";

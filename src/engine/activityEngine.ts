@@ -14,6 +14,16 @@ export const RETRY_GAP = 3;
 
 type RandomSource = () => number;
 
+export const createSessionId = (
+  worldId: string,
+  activityType: ActivityType,
+) => {
+  const randomId =
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  return `${worldId}:${activityType}:${randomId}`;
+};
+
 export const ACTIVITY_DEFINITIONS: ActivityDefinition[] = [
   {
     type: "multiple-choice",
@@ -437,7 +447,7 @@ export const createActivitySession = (
   );
 
   return {
-    id: `${world.id}:${activityType}:${Date.now()}`,
+    id: createSessionId(world.id, activityType),
     activityType,
     worldId: world.id,
     questions,

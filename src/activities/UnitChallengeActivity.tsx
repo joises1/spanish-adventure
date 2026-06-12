@@ -1,23 +1,30 @@
 import { ShieldCheck, Sparkles, Target, Trophy } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { MixedQuestionCard } from "../components/MixedQuestionCard";
 import { SessionResults } from "../components/SessionResults";
-import { scoreToStars } from "../engine/activityEngine";
+import {
+  createSessionId,
+  scoreToStars,
+} from "../engine/activityEngine";
 import { generateUnitChallenge } from "../engine/challengeEngine";
 import { getWorldProgress } from "../engine/game";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type {
   ActivitySkill,
+  Course,
   VocabularyWord,
   World,
 } from "../types";
 import {
+  getQuestionConcepts,
   getNewlyCollectedWords,
   getSessionScore,
 } from "./activityHelpers";
 
 type UnitChallengeActivityProps = {
+  course: Course;
   world: World;
   previouslyLearnedWords: VocabularyWord[];
   onBack: () => void;
@@ -39,12 +46,16 @@ const skillLabels: Record<ActivitySkill, string> = {
 };
 
 export function UnitChallengeActivity({
+  course,
   world,
   previouslyLearnedWords,
   onBack,
   onComplete,
 }: UnitChallengeActivityProps) {
   const { completeActivity, recordActivityAnswer, state } = useGame();
+  const [sessionId] = useState(() =>
+    createSessionId(world.id, "unit-challenge"),
+  );
   const [questions] = useState(() =>
     generateUnitChallenge(
       world,
@@ -70,19 +81,19 @@ export function UnitChallengeActivity({
   const currentWords = world.words.filter((word) =>
     currentWordIds.has(word.id),
   );
-  const allowedWords = [...world.words, ...previouslyLearnedWords];
+  const answeredQuestionIds = useRef(new Set<string>());
+  const completionStarted = useRef(false);
 
   const recordResult = (isCorrect: boolean) => {
-    if (!question) return;
-    const words = question.sourceWordIds
-      .map((wordId) => allowedWords.find((word) => word.id === wordId))
-      .filter((word): word is VocabularyWord => Boolean(word));
-    recordActivityAnswer(
-      question.sourceWorldId ?? world.id,
-      "unit-challenge",
-      words,
+    if (!question || answeredQuestionIds.current.has(question.id)) return;
+    answeredQuestionIds.current.add(question.id);
+    recordActivityAnswer({
+      kind: "answer",
+      id: createProgressEventId(sessionId, "answer", question.id),
+      activityType: "unit-challenge",
+      concepts: getQuestionConcepts(course.worlds, world, question),
       isCorrect,
-    );
+    });
     setCorrectCount((current) => current + (isCorrect ? 1 : 0));
 
     const skill = question.skill ?? "vocabulary";
@@ -99,14 +110,22 @@ export function UnitChallengeActivity({
   };
 
   const continueSession = () => {
+    if (completionStarted.current) return;
     if (index >= questions.length - 1) {
       const score = getSessionScore(correctCount, questions.length);
-      completeActivity(
-        world.id,
-        "unit-challenge",
-        currentWords,
+      completionStarted.current = true;
+      completeActivity({
+        kind: "activity-completion",
+        id: createProgressEventId(
+          sessionId,
+          "completion",
+          "unit-challenge",
+        ),
+        worldId: world.id,
+        activityType: "unit-challenge",
+        words: currentWords,
         score,
-      );
+      });
       setFinished(true);
       return;
     }

@@ -44,4 +44,8 @@ test("unit challenge is balanced, capped, and duplicate-free", () => {
       "story",
     ]),
   );
+  const storyQuestion = questions.find(
+    (question) => question.kind === "story-comprehension",
+  );
+  assert.equal(storyQuestion?.sourceWordIds.length, 1);
 });

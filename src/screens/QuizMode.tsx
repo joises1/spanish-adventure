@@ -9,6 +9,7 @@ import {
 import { useMemo, useState } from "react";
 import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
+import { createSessionId } from "../engine/activityEngine";
 import {
   createChoices,
   createQuizQueue,
@@ -17,6 +18,7 @@ import {
   getWorldProgress,
 } from "../engine/game";
 import { useGame } from "../state/GameContext";
+import { createProgressEventId } from "../state/progressEvents";
 import type { VocabularyWord, World } from "../types";
 import { ModeShell } from "./LearnMode";
 
@@ -41,6 +43,9 @@ export function QuizMode({
   review = false,
 }: QuizModeProps) {
   const { completeSession, state, recordAnswer } = useGame();
+  const [sessionId, setSessionId] = useState(() =>
+    createSessionId(world.id, "multiple-choice"),
+  );
   const initialQueue = useMemo(
     () =>
       review
@@ -73,12 +78,22 @@ export function QuizMode({
     const correct = choice.id === word.id;
     setSelectedId(choice.id);
     setSessionCorrect((current) => current + (correct ? 1 : 0));
-    recordAnswer(world.id, word, correct);
+    recordAnswer(
+      createProgressEventId(sessionId, "answer", word.id),
+      world.id,
+      word,
+      correct,
+    );
   };
 
   const next = () => {
     if (index >= queue.length - 1) {
-      completeSession(world.id, queue);
+      completeSession({
+        kind: "session-completion",
+        id: createProgressEventId(sessionId, "completion", "quiz"),
+        worldId: world.id,
+        words: queue,
+      });
       setFinished(true);
       return;
     }
@@ -91,6 +106,7 @@ export function QuizMode({
       ? createReviewQueue(state, world)
       : createQuizQueue(state, world);
     setQueue(nextQueue);
+    setSessionId(createSessionId(world.id, "multiple-choice"));
     setIndex(0);
     setSelectedId(undefined);
     setSessionCorrect(0);

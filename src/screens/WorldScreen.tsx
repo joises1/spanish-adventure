@@ -20,6 +20,7 @@ import {
   ACTIVITY_DEFINITIONS,
   getActivityProgressKey,
 } from "../engine/activityEngine";
+import { getActivityAvailability } from "../engine/activityAvailability";
 import {
   getAccuracy,
   getCompletion,
@@ -63,9 +64,16 @@ export function WorldScreen({
   const completion = getCompletion(state, world);
   const accuracy = getAccuracy(state, world);
   const stars = getStars(state, world);
-  const activities = HUB_ACTIVITY_TYPES.map((type) =>
-    ACTIVITY_DEFINITIONS.find((activity) => activity.type === type),
-  ).filter((activity) => Boolean(activity));
+  const activities = HUB_ACTIVITY_TYPES.map((type) => {
+    const definition = ACTIVITY_DEFINITIONS.find(
+      (activity) => activity.type === type,
+    );
+    if (!definition) return undefined;
+    return {
+      ...definition,
+      ...getActivityAvailability(world, type),
+    };
+  }).filter((activity) => Boolean(activity));
   const unitMastery = Math.round(
     world.words.reduce(
       (total, word) => total + (state.mastery[word.id]?.masteryEstimate ?? 0),
@@ -217,7 +225,9 @@ export function WorldScreen({
                 }
                 disabled={!activity.available}
                 aria-label={`${activity.title}. ${activity.description}${
-                  activity.available ? "" : " Coming in the next sprint."
+                  activity.available
+                    ? ""
+                    : ` Unavailable. ${activity.reason ?? ""}`
                 }`}
               >
                 <span
@@ -240,7 +250,11 @@ export function WorldScreen({
                       <CheckCircle2 size={18} aria-label="Completed" />
                     )}
                   </span>
-                  <small>{activity.description}</small>
+                  <small>
+                    {activity.available
+                      ? activity.description
+                      : activity.reason}
+                  </small>
                 </span>
                 <span className="activity-card__meta">
                   <span>
@@ -261,7 +275,7 @@ export function WorldScreen({
                   </span>
                 </span>
                 {!activity.available && (
-                  <span className="activity-card__soon">Next sprint</span>
+                  <span className="activity-card__soon">Unavailable</span>
                 )}
               </button>
             );

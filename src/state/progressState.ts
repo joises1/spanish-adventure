@@ -32,7 +32,7 @@ export const createEmptyWorldProgress = (): WorldProgress => ({
 });
 
 export const createInitialGameState = (today = dateKey()): GameState => ({
-  version: 3,
+  version: 4,
   xp: 0,
   streak: 1,
   lastActiveDate: today,
@@ -41,6 +41,7 @@ export const createInitialGameState = (today = dateKey()): GameState => ({
   activities: {},
   mastery: {},
   mistakes: {},
+  processedEvents: {},
 });
 
 type PersistedGameState = Partial<Omit<GameState, "version">> & {
@@ -54,7 +55,7 @@ export const normalizeGameState = (
   const normalized: GameState = {
     ...createInitialGameState(today),
     ...state,
-    version: 3,
+    version: 4,
     words: state.words ?? {},
     worlds: Object.fromEntries(
       Object.entries(state.worlds ?? {}).map(([worldId, progress]) => [
@@ -70,6 +71,7 @@ export const normalizeGameState = (
     activities: state.activities ?? {},
     mastery: state.mastery ?? {},
     mistakes: state.mistakes ?? {},
+    processedEvents: state.processedEvents ?? {},
   };
 
   if (normalized.lastActiveDate === today) return normalized;
@@ -94,7 +96,7 @@ export const loadCourseGameState = (
       (courseId === "b1" ? storage.getItem(LEGACY_STORAGE_KEY) : null);
     if (!saved) return createInitialGameState(today);
     const parsed = JSON.parse(saved) as PersistedGameState;
-    if (![1, 2, 3].includes(parsed.version ?? 0)) {
+    if (![1, 2, 3, 4].includes(parsed.version ?? 0)) {
       return createInitialGameState(today);
     }
     return normalizeGameState(parsed, today);
