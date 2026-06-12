@@ -1,4 +1,6 @@
-import { Flame, Map, RotateCcw, Sparkles } from "lucide-react";
+import { Flame, Map, RotateCcw, Star, Trophy } from "lucide-react";
+import { worlds } from "../data/worlds";
+import { getCurrentWorldIndex } from "../engine/game";
 import { useGame } from "../state/GameContext";
 import { VoiceSettings } from "./VoiceSettings";
 
@@ -9,6 +11,7 @@ type AppHeaderProps = {
 
 export function AppHeader({ onMap, compact = false }: AppHeaderProps) {
   const { resetProgress, state } = useGame();
+  const level = worlds[getCurrentWorldIndex(state, worlds)]?.unit ?? 1;
 
   const handleReset = () => {
     const confirmed = window.confirm(
@@ -35,18 +38,41 @@ export function AppHeader({ onMap, compact = false }: AppHeaderProps) {
         </button>
 
         <div className="header-stats">
-          <div className="stat-pill" title="Experience points">
-            <Sparkles size={17} aria-hidden="true" />
-            <strong>{state.xp}</strong>
-            <span>XP</span>
+          <div
+            className="toolbar-chip toolbar-chip--xp"
+            title={`${state.xp} experience points`}
+            aria-label={`${state.xp} experience points`}
+            role="status"
+          >
+            <Star size={18} fill="currentColor" aria-hidden="true" />
+            <span className="toolbar-chip__copy">
+              <strong>{state.xp}</strong>
+              <small>XP</small>
+            </span>
           </div>
           <div
-            className="stat-pill stat-pill--warm"
-            title="Daily learning streak"
+            className="toolbar-chip toolbar-chip--level"
+            title={`Current level ${level}`}
+            aria-label={`Current level ${level}`}
+            role="status"
           >
-            <Flame size={17} aria-hidden="true" />
-            <strong>{state.streak}</strong>
-            <span>day streak</span>
+            <Trophy size={18} aria-hidden="true" />
+            <span className="toolbar-chip__copy">
+              <strong>{level}</strong>
+              <small>Level</small>
+            </span>
+          </div>
+          <div
+            className="toolbar-chip toolbar-chip--streak"
+            title={`${state.streak} day streak`}
+            aria-label={`${state.streak} day streak`}
+            role="status"
+          >
+            <Flame size={18} fill="currentColor" aria-hidden="true" />
+            <span className="toolbar-chip__copy">
+              <strong>{state.streak}</strong>
+              <small>Streak</small>
+            </span>
           </div>
           <VoiceSettings />
           <button
@@ -57,7 +83,7 @@ export function AppHeader({ onMap, compact = false }: AppHeaderProps) {
             aria-label="Reset all saved progress"
           >
             <RotateCcw size={16} aria-hidden="true" />
-            <span>Reset</span>
+            <span className="toolbar-action__label">Reset</span>
           </button>
         </div>
       </div>

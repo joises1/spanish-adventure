@@ -1,4 +1,4 @@
-import { Compass, Lock, Search } from "lucide-react";
+import { Compass, Lock, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { LessonMap } from "../components/LessonMap";
 import { worlds } from "../data/worlds";
@@ -10,18 +10,20 @@ type MapScreenProps = {
 
 export function MapScreen({ onOpenWorld }: MapScreenProps) {
   const [query, setQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [highlightedWorldId, setHighlightedWorldId] = useState<string>();
   const searchResults = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return [];
+    if (!normalized) return worlds;
     return worlds.filter((world) =>
       `${world.name} ${world.spanishName}`.toLowerCase().includes(normalized),
-    ).slice(0, 6);
+    );
   }, [query]);
 
   const jumpToWorld = (world: World) => {
     setHighlightedWorldId(world.id);
     setQuery("");
+    setIsSearchOpen(false);
   };
 
   return (
@@ -35,18 +37,50 @@ export function MapScreen({ onOpenWorld }: MapScreenProps) {
           <h1>Adventure map</h1>
         </div>
 
-        <div className="map-search">
-          <label className="search-box">
-            <Search size={18} aria-hidden="true" />
-            <span className="sr-only">Find a world on the trail</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Find a world..."
-            />
-          </label>
+        <button
+          className="find-world-button"
+          type="button"
+          onClick={() => setIsSearchOpen(true)}
+          aria-expanded={isSearchOpen}
+          aria-controls="find-world-panel"
+        >
+          <Search size={17} aria-hidden="true" />
+          <span>Find world</span>
+        </button>
 
-          {query && (
+        {isSearchOpen && (
+          <div
+            className="map-search-panel"
+            id="find-world-panel"
+            role="dialog"
+            aria-label="Find a world"
+          >
+            <div className="map-search-panel__heading">
+              <div>
+                <strong>Find world</strong>
+                <small>Jump to any stop on your trail</small>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(false)}
+                aria-label="Close world search"
+                title="Close world search"
+              >
+                <X size={17} aria-hidden="true" />
+              </button>
+            </div>
+
+            <label className="search-box">
+              <Search size={18} aria-hidden="true" />
+              <span className="sr-only">Find a world on the trail</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Type a topic..."
+                autoFocus
+              />
+            </label>
+
             <div className="map-search__results">
               {searchResults.map((world) => (
                 <button
@@ -68,8 +102,8 @@ export function MapScreen({ onOpenWorld }: MapScreenProps) {
                 </span>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       <LessonMap

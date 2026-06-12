@@ -1,6 +1,10 @@
 import { Check, Flag, Lock, MapPin, Star } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { getCompletion, getStars } from "../engine/game";
+import {
+  getCompletion,
+  getCurrentWorldIndex,
+  getStars,
+} from "../engine/game";
 import { useGame } from "../state/GameContext";
 import type { World } from "../types";
 
@@ -54,10 +58,8 @@ export function LessonMap({
       })),
     [state, worlds],
   );
-  const firstUnclearedIndex = progress.findIndex(({ stars }) => stars === 0);
-  const allWorldsCleared = firstUnclearedIndex === -1;
-  const currentIndex =
-    allWorldsCleared ? worlds.length - 1 : firstUnclearedIndex;
+  const allWorldsCleared = progress.every(({ stars }) => stars > 0);
+  const currentIndex = getCurrentWorldIndex(state, worlds);
   const points = worlds.map((_, index) => ({
     x: xPositions[index % xPositions.length],
     y: trailHeight - TRAIL_PADDING - index * NODE_GAP,
@@ -71,7 +73,10 @@ export function LessonMap({
     if (!destination) return;
 
     const timer = window.setTimeout(() => {
-      destination.scrollIntoView({ behavior: "smooth", block: "center" });
+      destination.scrollIntoView({
+        behavior: highlightedWorldId ? "smooth" : "auto",
+        block: "center",
+      });
     }, 120);
 
     return () => window.clearTimeout(timer);

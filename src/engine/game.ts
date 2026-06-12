@@ -39,6 +39,15 @@ export const getStars = (state: GameState, world: World) => {
   return 0;
 };
 
+export const getCurrentWorldIndex = (state: GameState, worlds: World[]) => {
+  const firstUnclearedIndex = worlds.findIndex(
+    (world) => getStars(state, world) === 0,
+  );
+  return firstUnclearedIndex === -1
+    ? Math.max(0, worlds.length - 1)
+    : firstUnclearedIndex;
+};
+
 const shuffle = <T,>(items: T[]) => {
   const next = [...items];
   for (let index = next.length - 1; index > 0; index -= 1) {

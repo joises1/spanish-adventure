@@ -1,4 +1,4 @@
-import { AudioLines, LoaderCircle, Play, RefreshCw } from "lucide-react";
+import { LoaderCircle, Play, RefreshCw, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   getBrowserVoiceOptions,
@@ -61,8 +61,8 @@ export function VoiceSettings() {
   return (
     <details className="voice-settings">
       <summary title="Browser voice settings">
-        <AudioLines size={17} aria-hidden="true" />
-        <span>Voice</span>
+        <Volume2 size={18} aria-hidden="true" />
+        <span className="toolbar-action__label">Voice</span>
       </summary>
       <div className="voice-settings__menu">
         <div className="voice-settings__heading">
