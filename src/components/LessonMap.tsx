@@ -1,4 +1,4 @@
-import { Check, Flag, Lock, MapPin, Star } from "lucide-react";
+import { Check, Flag, MapPin, Star } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import {
   getCompletion,
@@ -350,19 +350,15 @@ export function LessonMap({
       {worlds.map((world, index) => {
         const storyWorld = storyWorldByLessonIndex.get(index);
         const { completion, stars } = progress[index];
-        const hasProgress = completion > 0 || stars > 0;
         const isCurrent = !allWorldsCleared && index === currentIndex;
         const isCompleted = stars > 0 && !isCurrent;
-        const isLocked = index > currentIndex && !hasProgress;
         const isStoryEntrance = index === storyWorld?.startIndex;
         const point = points[index];
-        const stateClass = isLocked
-          ? "lesson-node--locked"
-          : isCurrent
-            ? "lesson-node--current"
-            : isCompleted
-              ? "lesson-node--completed"
-              : "lesson-node--open";
+        const stateClass = isCurrent
+          ? "lesson-node--current"
+          : isCompleted
+            ? "lesson-node--completed"
+            : "lesson-node--open";
 
         return (
           <article
@@ -393,18 +389,11 @@ export function LessonMap({
                 className="lesson-node__button"
                 type="button"
                 onClick={() => onOpenWorld(world)}
-                disabled={isLocked}
-                aria-label={
-                  isLocked
-                    ? `World ${world.unit}, ${world.name}, locked`
-                    : `Open world ${world.unit}, ${world.name}`
-                }
+                aria-label={`Open world ${world.unit}, ${world.name}`}
               >
                 <span className="lesson-node__number">{world.unit}</span>
                 <span className="lesson-node__icon" aria-hidden="true">
-                  {isLocked ? (
-                    <Lock size={25} />
-                  ) : isCompleted ? (
+                  {isCompleted ? (
                     <Check size={28} strokeWidth={3} />
                   ) : (
                     world.icon
@@ -423,24 +412,20 @@ export function LessonMap({
             <div className="lesson-node__label">
               <span>World {world.unit}</span>
               <strong>{world.name}</strong>
-              <small>
-                {isLocked ? "Keep climbing to unlock" : world.spanishName}
-              </small>
-              {!isLocked && (
-                <div
-                  className="lesson-node__stars"
-                  aria-label={`${stars} out of 3 stars`}
-                >
-                  {[0, 1, 2].map((starIndex) => (
-                    <Star
-                      key={starIndex}
-                      size={15}
-                      fill={starIndex < stars ? "currentColor" : "none"}
-                    />
-                  ))}
-                  <em>{completion}%</em>
-                </div>
-              )}
+              <small>{world.spanishName}</small>
+              <div
+                className="lesson-node__stars"
+                aria-label={`${stars} out of 3 stars`}
+              >
+                {[0, 1, 2].map((starIndex) => (
+                  <Star
+                    key={starIndex}
+                    size={15}
+                    fill={starIndex < stars ? "currentColor" : "none"}
+                  />
+                ))}
+                <em>{completion}%</em>
+              </div>
             </div>
           </article>
         );

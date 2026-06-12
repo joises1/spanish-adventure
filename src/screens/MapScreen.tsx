@@ -1,4 +1,4 @@
-import { Compass, Lock, Search, X } from "lucide-react";
+import { Compass, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { LessonMap } from "../components/LessonMap";
 import { worlds } from "../data/worlds";
@@ -99,7 +99,7 @@ export function MapScreen({ onOpenWorld }: MapScreenProps) {
               ))}
               {searchResults.length === 0 && (
                 <span className="map-search__empty">
-                  <Lock size={15} />
+                  <Search size={15} />
                   No world found
                 </span>
               )}

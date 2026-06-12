@@ -1805,37 +1805,6 @@ main {
     0 14px 25px rgba(45, 111, 69, 0.23);
 }
 
-.lesson-node--locked {
-  z-index: 5;
-}
-
-.lesson-node--locked .lesson-node__button {
-  color: #78848a;
-  background: #bdc6ca;
-  border-color: #e9edef;
-  cursor: not-allowed;
-  box-shadow:
-    0 7px 0 #929da2,
-    0 12px 20px rgba(70, 84, 88, 0.16);
-  filter: grayscale(0.6);
-}
-
-.lesson-node--locked .lesson-node__number {
-  color: #78848a;
-  border-color: #d8dfe2;
-}
-
-.lesson-node--locked .lesson-node__label {
-  background: rgba(235, 239, 240, 0.94);
-  border-color: #eef1f2;
-}
-
-.lesson-node--locked .lesson-node__label > span,
-.lesson-node--locked .lesson-node__label > strong,
-.lesson-node--locked .lesson-node__label > small {
-  color: #7b898d;
-}
-
 .lesson-node--current .lesson-node__button {
   animation: current-node-pulse 1.8s ease-in-out infinite;
 }
