@@ -18,13 +18,13 @@ type LearnModeProps = {
 };
 
 export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
-  const { markLearned, state } = useGame();
+  const { completeSession, markLearned, state } = useGame();
   const [queue] = useState(() => createLearningQueue(world));
   const [index, setIndex] = useState(0);
   const [finished, setFinished] = useState(false);
   const [sessionStartXp] = useState(() => state.xp);
-  const [initialUnlockedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).learnedWordIds),
+  const [initialCollectedIds] = useState(
+    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
   );
   const word = queue[index];
 
@@ -38,11 +38,15 @@ export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
     );
   };
 
-  const unlockedWords = queue.filter(
+  const newlyLearnedWords = queue.filter(
     (queueWord, queueIndex) =>
-      !initialUnlockedIds.has(queueWord.id) &&
+      !initialCollectedIds.has(queueWord.id) &&
       queue.findIndex((item) => item.id === queueWord.id) === queueIndex,
   );
+  const finishSession = () => {
+    completeSession(world.id, queue);
+    setFinished(true);
+  };
 
   if (finished) {
     return (
@@ -58,7 +62,7 @@ export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
           message="You explored ten Spanish words and added every new discovery to your dictionary."
           stars={getStars(state, world)}
           xpGained={Math.max(0, state.xp - sessionStartXp)}
-          unlockedWords={unlockedWords}
+          learnedWords={newlyLearnedWords}
           onContinue={onComplete}
         />
       </ModeShell>
@@ -122,7 +126,7 @@ export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
         <button
           className="primary-button"
           onClick={() =>
-            index === queue.length - 1 ? setFinished(true) : move(1)
+            index === queue.length - 1 ? finishSession() : move(1)
           }
         >
           {index === queue.length - 1 ? "Finish session" : "Next word"}

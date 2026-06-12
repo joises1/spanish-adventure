@@ -34,6 +34,8 @@ export type AnswerRecord = {
 
 export type WorldProgress = {
   learnedWordIds: string[];
+  collectedWordIds: string[];
+  completedSessions: number;
   quizAnswers: number;
   quizCorrect: number;
 };

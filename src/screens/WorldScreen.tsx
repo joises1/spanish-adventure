@@ -1,10 +1,12 @@
 import {
-  ArrowLeft,
-  BookOpen,
+  BookOpenCheck,
   Brain,
-  CircleHelp,
-  Layers3,
+  Clock3,
+  Play,
+  Sparkles,
   Star,
+  Target,
+  X,
 } from "lucide-react";
 import { ProgressBar } from "../components/ProgressBar";
 import {
@@ -22,33 +24,6 @@ type WorldScreenProps = {
   onOpenMode: (mode: Mode) => void;
 };
 
-const modes = [
-  {
-    id: "learn" as const,
-    name: "Learn",
-    description: "Meet each Spanish word with its English meaning.",
-    icon: BookOpen,
-  },
-  {
-    id: "flashcards" as const,
-    name: "Flashcards",
-    description: "Say the meaning, then flip to check.",
-    icon: Layers3,
-  },
-  {
-    id: "quiz" as const,
-    name: "Quick Quiz",
-    description: "Choose the English meaning and get instant feedback.",
-    icon: CircleHelp,
-  },
-  {
-    id: "review" as const,
-    name: "Review",
-    description: "Revisit words that have been a little tricky.",
-    icon: Brain,
-  },
-];
-
 export function WorldScreen({
   world,
   onBack,
@@ -63,87 +38,133 @@ export function WorldScreen({
   ).length;
 
   return (
-    <main className="world-page">
-      <button className="back-button" onClick={onBack}>
-        <ArrowLeft size={18} aria-hidden="true" />
-        Back to map
-      </button>
-
+    <main className="lesson-launch-page">
       <section
-        className="world-banner"
+        className="lesson-launch-card"
         style={
           {
             "--world-color": world.color,
             "--world-accent": world.accent,
           } as React.CSSProperties
         }
+        aria-labelledby="lesson-launch-title"
       >
-        <div className="world-banner__icon" aria-hidden="true">
-          {world.icon}
-        </div>
-        <div className="world-banner__copy">
-          <span className="eyebrow">World {world.unit}</span>
-          <h1>{world.name}</h1>
-          <p className="world-banner__spanish">{world.spanishName}</p>
-          <p>{world.description}</p>
-        </div>
-        <div className="world-banner__progress">
-          <strong>{completion}%</strong>
-          <span>explored</span>
-          <ProgressBar value={completion} color={world.accent} />
-          <div className="banner-stars" aria-label={`${stars} out of 3 stars`}>
-            {[0, 1, 2].map((index) => (
-              <Star
-                key={index}
-                size={20}
-                fill={index < stars ? "currentColor" : "none"}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
+        <button
+          className="lesson-launch-card__close"
+          type="button"
+          onClick={onBack}
+          aria-label="Close lesson"
+          title="Close lesson"
+        >
+          <X size={20} aria-hidden="true" />
+        </button>
 
-      <section className="world-summary">
-        <div>
-          <strong>{world.words.length}</strong>
-          <span>core words</span>
-        </div>
-        <div>
-          <strong>{accuracy || "—"}{accuracy ? "%" : ""}</strong>
-          <span>quiz accuracy</span>
-        </div>
-        <div>
-          <strong>{reviewCount}</strong>
-          <span>waiting to review</span>
-        </div>
-      </section>
-
-      <section className="mode-section">
-        <div className="section-heading">
+        <div className="lesson-launch-card__hero">
+          <span className="lesson-launch-card__icon" aria-hidden="true">
+            {world.icon}
+          </span>
           <div>
-            <span className="eyebrow">Pick your pace</span>
-            <h2>How would you like to explore?</h2>
+            <span className="eyebrow">
+              <Sparkles size={14} aria-hidden="true" />
+              World {world.unit}
+            </span>
+            <h1 id="lesson-launch-title">{world.name}</h1>
+            <p className="lesson-launch-card__spanish">{world.spanishName}</p>
           </div>
         </div>
-        <div className="mode-grid">
-          {modes.map((mode) => {
-            const Icon = mode.icon;
-            return (
-              <button
-                className="mode-card"
-                key={mode.id}
-                onClick={() => onOpenMode(mode.id)}
-              >
-                <span className="mode-card__icon">
-                  <Icon size={25} aria-hidden="true" />
-                </span>
-                <span>
-                  <strong>{mode.name}</strong>
-                  <small>{mode.description}</small>
-                </span>
-              </button>
-            );
-          })}
+
+        <div className="lesson-launch-goal">
+          <span>
+            <Target size={22} aria-hidden="true" />
+          </span>
+          <div>
+            <small>Lesson goal</small>
+            <strong>Match Spanish words to their English meanings</strong>
+            <p>{world.description}</p>
+          </div>
+        </div>
+
+        <div className="lesson-launch-details">
+          <div>
+            <Clock3 size={19} aria-hidden="true" />
+            <span>
+              <strong>About 5 minutes</strong>
+              <small>10 friendly questions</small>
+            </span>
+          </div>
+          <div>
+            <Brain size={19} aria-hidden="true" />
+            <span>
+              <strong>{reviewCount || "Fresh"} review</strong>
+              <small>
+                {reviewCount
+                  ? `${reviewCount} tricky words ready`
+                  : "Review opens anytime"}
+              </small>
+            </span>
+          </div>
+        </div>
+
+        <section className="lesson-rewards" aria-label="Lesson rewards">
+          <div className="lesson-rewards__heading">
+            <span>
+              <Sparkles size={15} aria-hidden="true" />
+              Rewards preview
+            </span>
+            <small>Based on your answers</small>
+          </div>
+          <div className="lesson-rewards__grid">
+            <div>
+              <Sparkles size={20} aria-hidden="true" />
+              <strong>Up to 100 XP</strong>
+            </div>
+            <div>
+              <Star size={20} fill="currentColor" aria-hidden="true" />
+              <strong>Up to 3 stars</strong>
+            </div>
+            <div>
+              <BookOpenCheck size={20} aria-hidden="true" />
+              <strong>10 learned words</strong>
+            </div>
+          </div>
+        </section>
+
+        <div className="lesson-launch-progress">
+          <div>
+            <span>Unit progress</span>
+            <strong>{completion}%</strong>
+          </div>
+          <ProgressBar value={completion} color={world.accent} />
+          <small>
+            {accuracy ? `${accuracy}% quiz accuracy` : "Ready for your first run"}
+            {stars > 0 ? ` / ${stars} stars earned` : ""}
+          </small>
+        </div>
+
+        <div className="lesson-launch-actions">
+          <button
+            className="primary-button lesson-start-button"
+            type="button"
+            onClick={() => onOpenMode("quiz")}
+          >
+            <Play size={19} fill="currentColor" aria-hidden="true" />
+            Start
+          </button>
+          <button
+            className="secondary-button lesson-review-button"
+            type="button"
+            onClick={() => onOpenMode("review")}
+          >
+            <Brain size={18} aria-hidden="true" />
+            Review
+          </button>
+          <button
+            className="lesson-close-button"
+            type="button"
+            onClick={onBack}
+          >
+            Close
+          </button>
         </div>
       </section>
     </main>

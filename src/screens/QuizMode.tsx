@@ -40,7 +40,7 @@ export function QuizMode({
   onComplete,
   review = false,
 }: QuizModeProps) {
-  const { state, recordAnswer } = useGame();
+  const { completeSession, state, recordAnswer } = useGame();
   const initialQueue = useMemo(
     () =>
       review
@@ -56,8 +56,8 @@ export function QuizMode({
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [finished, setFinished] = useState(false);
   const [sessionStartXp, setSessionStartXp] = useState(() => state.xp);
-  const [initialUnlockedIds, setInitialUnlockedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).learnedWordIds),
+  const [initialCollectedIds, setInitialCollectedIds] = useState(
+    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
   );
   const word = queue[index];
 
@@ -78,6 +78,7 @@ export function QuizMode({
 
   const next = () => {
     if (index >= queue.length - 1) {
+      completeSession(world.id, queue);
       setFinished(true);
       return;
     }
@@ -95,16 +96,16 @@ export function QuizMode({
     setSessionCorrect(0);
     setFinished(false);
     setSessionStartXp(state.xp);
-    setInitialUnlockedIds(
-      new Set(getWorldProgress(state, world.id).learnedWordIds),
+    setInitialCollectedIds(
+      new Set(getWorldProgress(state, world.id).collectedWordIds),
     );
   };
 
   if (finished) {
     const percentage = Math.round((sessionCorrect / queue.length) * 100);
-    const unlockedWords = queue.filter(
+    const newlyLearnedWords = queue.filter(
       (queueWord, queueIndex) =>
-        !initialUnlockedIds.has(queueWord.id) &&
+        !initialCollectedIds.has(queueWord.id) &&
         queue.findIndex((item) => item.id === queueWord.id) === queueIndex,
     );
     return (
@@ -120,7 +121,7 @@ export function QuizMode({
           message={`You matched ${sessionCorrect} of ${queue.length} Spanish words to their English meanings.`}
           stars={getStars(state, world)}
           xpGained={Math.max(0, state.xp - sessionStartXp)}
-          unlockedWords={unlockedWords}
+          learnedWords={newlyLearnedWords}
           onContinue={onComplete}
           onPracticeAgain={restart}
         />

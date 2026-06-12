@@ -8,6 +8,8 @@ import type {
 
 export const EMPTY_WORLD_PROGRESS: WorldProgress = {
   learnedWordIds: [],
+  collectedWordIds: [],
+  completedSessions: 0,
   quizAnswers: 0,
   quizCorrect: 0,
 };

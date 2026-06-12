@@ -6,7 +6,7 @@ type SessionResultsProps = {
   message: string;
   stars: number;
   xpGained: number;
-  unlockedWords: VocabularyWord[];
+  learnedWords: VocabularyWord[];
   onContinue: () => void;
   onPracticeAgain?: () => void;
 };
@@ -16,7 +16,7 @@ export function SessionResults({
   message,
   stars,
   xpGained,
-  unlockedWords,
+  learnedWords,
   onContinue,
   onPracticeAgain,
 }: SessionResultsProps) {
@@ -48,20 +48,20 @@ export function SessionResults({
           <span className="session-results__reward-icon session-results__reward-icon--words">
             <BookOpenCheck size={20} aria-hidden="true" />
           </span>
-          <strong>{unlockedWords.length}</strong>
-          <small>Words unlocked</small>
+          <strong>{learnedWords.length}</strong>
+          <small>Words added</small>
         </div>
       </div>
 
-      {unlockedWords.length > 0 && (
-        <div className="session-results__unlocks">
-          <strong>New in your dictionary</strong>
+      {learnedWords.length > 0 && (
+        <div className="session-results__additions">
+          <strong>Added to What You Learned</strong>
           <div>
-            {unlockedWords.slice(0, 5).map((word) => (
+            {learnedWords.slice(0, 5).map((word) => (
               <span key={word.id}>{word.es}</span>
             ))}
-            {unlockedWords.length > 5 && (
-              <span>+{unlockedWords.length - 5} more</span>
+            {learnedWords.length > 5 && (
+              <span>+{learnedWords.length - 5} more</span>
             )}
           </div>
         </div>

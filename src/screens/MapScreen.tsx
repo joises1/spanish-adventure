@@ -1,4 +1,4 @@
-import { BookOpen, Compass, Lock, Search, Sparkles, X } from "lucide-react";
+import { Compass, Lock, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { LessonMap } from "../components/LessonMap";
 import { worlds } from "../data/worlds";
@@ -6,13 +6,9 @@ import type { World } from "../types";
 
 type MapScreenProps = {
   onOpenWorld: (world: World) => void;
-  onOpenDictionary: () => void;
 };
 
-export function MapScreen({
-  onOpenWorld,
-  onOpenDictionary,
-}: MapScreenProps) {
+export function MapScreen({ onOpenWorld }: MapScreenProps) {
   const [query, setQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [highlightedWorldId, setHighlightedWorldId] = useState<string>();
@@ -42,17 +38,6 @@ export function MapScreen({
         </div>
 
         <div className="adventure-toolbar__actions">
-          <button
-            className="dictionary-button"
-            type="button"
-            onClick={onOpenDictionary}
-          >
-            <span className="dictionary-button__spark" aria-hidden="true">
-              <Sparkles size={12} />
-            </span>
-            <BookOpen size={17} aria-hidden="true" />
-            <span>Dictionary</span>
-          </button>
           <button
             className="find-world-button"
             type="button"

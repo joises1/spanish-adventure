@@ -58,7 +58,18 @@ const loadState = (): GameState => {
     if (!saved) return createInitialState();
     const parsed = JSON.parse(saved) as GameState;
     if (parsed.version !== 1) return createInitialState();
-    return refreshStreak(parsed);
+    const normalizedWorlds = Object.fromEntries(
+      Object.entries(parsed.worlds ?? {}).map(([worldId, progress]) => [
+        worldId,
+        {
+          ...progress,
+          learnedWordIds: progress.learnedWordIds ?? [],
+          collectedWordIds: progress.collectedWordIds ?? [],
+          completedSessions: progress.completedSessions ?? 0,
+        },
+      ]),
+    );
+    return refreshStreak({ ...parsed, worlds: normalizedWorlds });
   } catch {
     return createInitialState();
   }
@@ -72,6 +83,7 @@ type GameContextValue = {
     word: VocabularyWord,
     isCorrect: boolean,
   ) => void;
+  completeSession: (worldId: string, words: VocabularyWord[]) => void;
   resetProgress: () => void;
 };
 
@@ -88,6 +100,8 @@ export function GameProvider({ children }: PropsWithChildren) {
     setState((current) => {
       const worldProgress = current.worlds[worldId] ?? {
         learnedWordIds: [],
+        collectedWordIds: [],
+        completedSessions: 0,
         quizAnswers: 0,
         quizCorrect: 0,
       };
@@ -116,6 +130,8 @@ export function GameProvider({ children }: PropsWithChildren) {
         };
         const worldProgress = current.worlds[worldId] ?? {
           learnedWordIds: [],
+          collectedWordIds: [],
+          completedSessions: 0,
           quizAnswers: 0,
           quizCorrect: 0,
         };
@@ -149,13 +165,52 @@ export function GameProvider({ children }: PropsWithChildren) {
     [],
   );
 
+  const completeSession = useCallback(
+    (worldId: string, words: VocabularyWord[]) => {
+      setState((current) => {
+        const worldProgress = current.worlds[worldId] ?? {
+          learnedWordIds: [],
+          collectedWordIds: [],
+          completedSessions: 0,
+          quizAnswers: 0,
+          quizCorrect: 0,
+        };
+        const collectedWordIds = [
+          ...new Set([
+            ...worldProgress.collectedWordIds,
+            ...words.map((word) => word.id),
+          ]),
+        ];
+
+        return {
+          ...current,
+          worlds: {
+            ...current.worlds,
+            [worldId]: {
+              ...worldProgress,
+              collectedWordIds,
+              completedSessions: worldProgress.completedSessions + 1,
+            },
+          },
+        };
+      });
+    },
+    [],
+  );
+
   const resetProgress = useCallback(() => {
     setState(createInitialState());
   }, []);
 
   const value = useMemo(
-    () => ({ state, markLearned, recordAnswer, resetProgress }),
-    [markLearned, recordAnswer, resetProgress, state],
+    () => ({
+      state,
+      markLearned,
+      recordAnswer,
+      completeSession,
+      resetProgress,
+    }),
+    [completeSession, markLearned, recordAnswer, resetProgress, state],
   );
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

@@ -8,7 +8,11 @@ import {
   type BrowserVoiceOption,
 } from "../utils/speak";
 
-export function VoiceSettings() {
+type VoiceSettingsProps = {
+  embedded?: boolean;
+};
+
+export function VoiceSettings({ embedded = false }: VoiceSettingsProps) {
   const [voices, setVoices] = useState<BrowserVoiceOption[]>([]);
   const [selectedVoiceId, setSelectedVoiceId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -59,10 +63,16 @@ export function VoiceSettings() {
   };
 
   return (
-    <details className="voice-settings">
+    <details
+      className={`voice-settings ${
+        embedded ? "voice-settings--embedded" : ""
+      }`}
+    >
       <summary title="Browser voice settings">
         <Volume2 size={18} aria-hidden="true" />
-        <span className="toolbar-action__label">Voice</span>
+        <span className="toolbar-action__label">
+          {embedded ? "Voice & audio" : "Voice"}
+        </span>
       </summary>
       <div className="voice-settings__menu">
         <div className="voice-settings__heading">
