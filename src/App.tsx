@@ -1,21 +1,27 @@
 import { useState } from "react";
 import { AppHeader } from "./components/AppHeader";
+import { getCourse } from "./data/courses";
+import { CourseLandingScreen } from "./screens/CourseLandingScreen";
 import { FlashcardMode } from "./screens/FlashcardMode";
 import { LearnMode } from "./screens/LearnMode";
 import { MapScreen } from "./screens/MapScreen";
 import { QuizMode } from "./screens/QuizMode";
 import { WhatYouLearnedScreen } from "./screens/WhatYouLearnedScreen";
 import { WorldScreen } from "./screens/WorldScreen";
-import type { Mode, World } from "./types";
+import { useCourse } from "./state/CourseContext";
+import type { CourseId, Mode, World } from "./types";
 
 type Screen =
+  | { name: "course" }
   | { name: "map" }
-  | { name: "dictionary" }
+  | { name: "learned" }
   | { name: "world"; world: World }
   | { name: "mode"; world: World; mode: Mode };
 
 function App() {
-  const [screen, setScreen] = useState<Screen>({ name: "map" });
+  const { selectedCourseId, selectCourse } = useCourse();
+  const [screen, setScreen] = useState<Screen>({ name: "course" });
+  const course = getCourse(selectedCourseId ?? "b1");
 
   const openWorld = (world: World) => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -32,20 +38,46 @@ function App() {
     setScreen({ name: "map" });
   };
 
+  const chooseCourse = (courseId: CourseId) => {
+    selectCourse(courseId);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setScreen({ name: "map" });
+  };
+
   return (
     <div className="app">
-      <AppHeader
-        onMap={showMap}
-        onOpenLearned={() => setScreen({ name: "dictionary" })}
-        compact={screen.name !== "map"}
-      />
-
-      {screen.name === "map" && (
-        <MapScreen onOpenWorld={openWorld} />
+      {screen.name !== "course" && (
+        <AppHeader
+          course={course}
+          worlds={course.worlds}
+          onMap={showMap}
+          onOpenLearned={() => setScreen({ name: "learned" })}
+          onSwitchCourse={() => setScreen({ name: "course" })}
+          compact={screen.name !== "map"}
+        />
       )}
 
-      {screen.name === "dictionary" && (
-        <WhatYouLearnedScreen onBack={showMap} />
+      {screen.name === "course" && (
+        <CourseLandingScreen
+          selectedCourseId={selectedCourseId}
+          onSelectCourse={chooseCourse}
+        />
+      )}
+
+      {screen.name === "map" && (
+        <MapScreen
+          course={course}
+          worlds={course.worlds}
+          onOpenWorld={openWorld}
+        />
+      )}
+
+      {screen.name === "learned" && (
+        <WhatYouLearnedScreen
+          course={course}
+          worlds={course.worlds}
+          onBack={showMap}
+        />
       )}
 
       {screen.name === "world" && (

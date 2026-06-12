@@ -1,10 +1,12 @@
 import { ArrowLeft, BookOpenCheck, Search, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { SpeakerButton } from "../components/SpeakerButton";
-import { worlds } from "../data/worlds";
 import { useGame } from "../state/GameContext";
+import type { Course, World } from "../types";
 
 type WhatYouLearnedScreenProps = {
+  course: Course;
+  worlds: World[];
   onBack: () => void;
 };
 
@@ -20,16 +22,9 @@ const normalize = (value: string) =>
 const getSortKey = (value: string) =>
   normalize(value.replace(leadingArticles, "")).replace(/[^a-z]/g, "");
 
-const allEntries = worlds.flatMap((world) =>
-  world.words.map((word) => ({
-    word,
-    worldName: world.name,
-    worldUnit: world.unit,
-    sortKey: getSortKey(word.es),
-  })),
-);
-
 export function WhatYouLearnedScreen({
+  course,
+  worlds,
   onBack,
 }: WhatYouLearnedScreenProps) {
   const { state } = useGame();
@@ -48,12 +43,24 @@ export function WhatYouLearnedScreen({
     (total, progress) => total + (progress.completedSessions ?? 0),
     0,
   );
+  const allEntries = useMemo(
+    () =>
+      worlds.flatMap((world) =>
+        world.words.map((word) => ({
+          word,
+          worldName: world.name,
+          worldUnit: world.unit,
+          sortKey: getSortKey(word.es),
+        })),
+      ),
+    [worlds],
+  );
   const learnedEntries = useMemo(
     () =>
       allEntries
         .filter((entry) => collectedIds.has(entry.word.id))
         .sort((a, b) => a.sortKey.localeCompare(b.sortKey)),
-    [collectedIds],
+    [allEntries, collectedIds],
   );
   const filteredEntries = useMemo(() => {
     const normalizedQuery = normalize(query.trim());
@@ -85,7 +92,7 @@ export function WhatYouLearnedScreen({
         <div>
           <span className="eyebrow">
             <Sparkles size={14} aria-hidden="true" />
-            Your personal collection
+            {course.shortName}
           </span>
           <h1>What You Learned</h1>
           <p>

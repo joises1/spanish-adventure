@@ -1,14 +1,19 @@
 import { Compass, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { LessonMap } from "../components/LessonMap";
-import { worlds } from "../data/worlds";
-import type { World } from "../types";
+import type { Course, World } from "../types";
 
 type MapScreenProps = {
+  course: Course;
+  worlds: World[];
   onOpenWorld: (world: World) => void;
 };
 
-export function MapScreen({ onOpenWorld }: MapScreenProps) {
+export function MapScreen({
+  course,
+  worlds,
+  onOpenWorld,
+}: MapScreenProps) {
   const [query, setQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [highlightedWorldId, setHighlightedWorldId] = useState<string>();
@@ -18,7 +23,7 @@ export function MapScreen({ onOpenWorld }: MapScreenProps) {
     return worlds.filter((world) =>
       `${world.name} ${world.spanishName}`.toLowerCase().includes(normalized),
     );
-  }, [query]);
+  }, [query, worlds]);
 
   const jumpToWorld = (world: World) => {
     setHighlightedWorldId(world.id);
@@ -32,9 +37,9 @@ export function MapScreen({ onOpenWorld }: MapScreenProps) {
         <div className="adventure-toolbar__copy">
           <span className="eyebrow">
             <Compass size={16} aria-hidden="true" />
-            Your Spanish trail
+            {course.shortName}
           </span>
-          <h1>Adventure map</h1>
+          <h1>{course.name} map</h1>
         </div>
 
         <div className="adventure-toolbar__actions">

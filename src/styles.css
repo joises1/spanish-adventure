@@ -70,6 +70,204 @@ h3 {
   min-height: 100vh;
 }
 
+.course-landing {
+  width: min(1100px, calc(100% - 40px));
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  gap: 38px;
+  padding: 55px 0 70px;
+}
+
+.course-landing__intro {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.course-landing__mark {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #d86650, #e9aa42);
+  border: 5px solid rgba(255, 255, 255, 0.82);
+  border-radius: 24px 24px 24px 8px;
+  box-shadow: 0 13px 28px rgba(179, 92, 49, 0.23);
+}
+
+.course-landing__intro h1 {
+  max-width: 760px;
+  margin: 10px 0 12px;
+  font-size: clamp(42px, 7vw, 72px);
+  line-height: 0.98;
+}
+
+.course-landing__intro p {
+  max-width: 660px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.course-bubbles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.course-bubble {
+  min-height: 390px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: clamp(28px, 5vw, 48px);
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+  color: #fff;
+  background:
+    radial-gradient(
+      circle at 84% 15%,
+      rgba(255, 255, 255, 0.25),
+      transparent 24%
+    ),
+    linear-gradient(
+      145deg,
+      var(--course-color),
+      color-mix(in srgb, var(--course-accent) 82%, #fff)
+    );
+  border: 7px solid rgba(255, 255, 255, 0.8);
+  border-radius: 54px 54px 54px 18px;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--course-accent) 42%, transparent),
+    0 24px 48px color-mix(in srgb, var(--course-accent) 25%, transparent);
+  cursor: pointer;
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.course-bubble::before,
+.course-bubble::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.course-bubble::before {
+  width: 210px;
+  height: 210px;
+  right: -78px;
+  bottom: -92px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.course-bubble::after {
+  width: 74px;
+  height: 74px;
+  right: 22%;
+  top: -34px;
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.course-bubble:hover {
+  transform: translateY(-8px) scale(1.015);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--course-accent) 48%, transparent),
+    0 32px 58px color-mix(in srgb, var(--course-accent) 31%, transparent);
+}
+
+.course-bubble--b1 {
+  border-radius: 54px 54px 18px 54px;
+}
+
+.course-bubble--selected {
+  outline: 4px solid rgba(255, 223, 111, 0.8);
+  outline-offset: 5px;
+}
+
+.course-bubble__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  padding: 6px 10px;
+  color: #4f4c2b;
+  background: #fff0a9;
+  border: 2px solid rgba(255, 255, 255, 0.78);
+  border-radius: 99px;
+  box-shadow: 0 5px 12px rgba(57, 54, 37, 0.13);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.course-bubble__icon {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 21px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 4px solid rgba(255, 255, 255, 0.45);
+  border-radius: 25px 25px 25px 8px;
+  box-shadow: 0 12px 25px rgba(53, 67, 59, 0.13);
+  font-size: 39px;
+}
+
+.course-bubble__level {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  opacity: 0.8;
+  text-transform: uppercase;
+}
+
+.course-bubble > strong {
+  margin-top: 4px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(34px, 5vw, 49px);
+  line-height: 1;
+}
+
+.course-bubble p {
+  max-width: 430px;
+  margin: 14px 0 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.course-bubble__meta {
+  margin-top: 18px;
+  font-size: 10px;
+  font-weight: 800;
+  opacity: 0.72;
+}
+
+.course-bubble__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 24px;
+  padding: 11px 15px;
+  color: var(--course-accent);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 8px 16px rgba(46, 63, 55, 0.13);
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .app-header {
   width: 100%;
   height: 64px;
@@ -291,6 +489,46 @@ h3 {
   border-radius: 18px;
   box-shadow: 0 10px 22px rgba(91, 63, 139, 0.23);
   cursor: pointer;
+}
+
+.drawer-course-button {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 13px;
+  text-align: left;
+  color: #395c55;
+  background: #fff;
+  border: 1px solid #d8dfd7;
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.drawer-course-button > span {
+  width: 39px;
+  height: 39px;
+  display: grid;
+  place-items: center;
+  background: #f2f4e9;
+  border-radius: 13px;
+  font-size: 21px;
+}
+
+.drawer-course-button strong,
+.drawer-course-button small {
+  display: block;
+}
+
+.drawer-course-button strong {
+  color: var(--navy);
+  font-size: 12px;
+}
+
+.drawer-course-button small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 9px;
 }
 
 .drawer-learned-button > span {
@@ -3166,6 +3404,24 @@ main {
 }
 
 @media (max-width: 780px) {
+  .course-landing {
+    align-content: start;
+    padding-top: 38px;
+  }
+
+  .course-bubbles {
+    grid-template-columns: 1fr;
+    max-width: 620px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .course-bubble,
+  .course-bubble--b1 {
+    min-height: 350px;
+    border-radius: 42px 42px 42px 15px;
+  }
+
   .app-header__inner,
   main {
     width: min(100% - 24px, 1240px);
@@ -3309,6 +3565,59 @@ main {
 }
 
 @media (max-width: 520px) {
+  .course-landing {
+    width: calc(100% - 18px);
+    gap: 26px;
+    padding: 28px 0 42px;
+  }
+
+  .course-landing__mark {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 12px;
+  }
+
+  .course-landing__intro h1 {
+    margin-top: 7px;
+    font-size: 39px;
+  }
+
+  .course-landing__intro p {
+    font-size: 12px;
+  }
+
+  .course-bubbles {
+    gap: 17px;
+  }
+
+  .course-bubble,
+  .course-bubble--b1 {
+    min-height: 330px;
+    padding: 27px 24px;
+    border-width: 5px;
+    border-radius: 34px 34px 34px 13px;
+  }
+
+  .course-bubble__saved {
+    top: 17px;
+    right: 17px;
+  }
+
+  .course-bubble__icon {
+    width: 63px;
+    height: 63px;
+    margin-bottom: 17px;
+    font-size: 32px;
+  }
+
+  .course-bubble > strong {
+    font-size: 35px;
+  }
+
+  .course-bubble p {
+    font-size: 12px;
+  }
+
   html {
     scroll-padding-top: 62px;
   }

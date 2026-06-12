@@ -3,6 +3,7 @@ import {
   Flame,
   Map,
   Menu,
+  Repeat2,
   RotateCcw,
   Sparkles,
   Star,
@@ -10,7 +11,6 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { worlds } from "../data/worlds";
 import {
   getCompletion,
   getCurrentWorldIndex,
@@ -18,17 +18,24 @@ import {
   getXpMilestone,
 } from "../engine/game";
 import { useGame } from "../state/GameContext";
+import type { Course, World } from "../types";
 import { VoiceSettings } from "./VoiceSettings";
 
 type AppHeaderProps = {
+  course: Course;
+  worlds: World[];
   onMap: () => void;
   onOpenLearned: () => void;
+  onSwitchCourse: () => void;
   compact?: boolean;
 };
 
 export function AppHeader({
+  course,
+  worlds,
   onMap,
   onOpenLearned,
+  onSwitchCourse,
   compact = false,
 }: AppHeaderProps) {
   const { resetProgress, state } = useGame();
@@ -126,7 +133,7 @@ export function AppHeader({
               <div>
                 <span className="eyebrow">
                   <Sparkles size={13} aria-hidden="true" />
-                  Your adventure
+                  {course.shortName}
                 </span>
                 <h2>Trail menu</h2>
               </div>
@@ -175,6 +182,22 @@ export function AppHeader({
                 </div>
               </article>
             </section>
+
+            <button
+              className="drawer-course-button"
+              type="button"
+              onClick={() => {
+                setIsDrawerOpen(false);
+                onSwitchCourse();
+              }}
+            >
+              <span aria-hidden="true">{course.icon}</span>
+              <div>
+                <strong>{course.shortName}</strong>
+                <small>Switch Spanish course</small>
+              </div>
+              <Repeat2 size={17} aria-hidden="true" />
+            </button>
 
             <button
               className="drawer-learned-button"

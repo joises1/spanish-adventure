@@ -24,6 +24,20 @@ export type World = {
   words: VocabularyWord[];
 };
 
+export type CourseId = "a1-a2" | "b1";
+
+export type Course = {
+  id: CourseId;
+  level: string;
+  name: string;
+  shortName: string;
+  description: string;
+  icon: string;
+  color: string;
+  accent: string;
+  worlds: World[];
+};
+
 export type Mode = "learn" | "flashcards" | "quiz" | "review";
 
 export type AnswerRecord = {

@@ -116,25 +116,16 @@ const transitionScenes = [
     decorations: ["⭐", "☁️", "🏝️"],
   },
 ];
-const storyWorldBreaks = storyWorlds
-  .slice(0, -1)
-  .reduce<number[]>((breaks, storyWorld) => {
-    const previousBreak = breaks[breaks.length - 1] ?? 0;
-    return [...breaks, previousBreak + storyWorld.lessonCount];
-  }, []);
-
 const createStoryRegions = (lessonCount: number) => {
   let nextLessonIndex = 0;
+  const baseLessonCount = Math.floor(lessonCount / storyWorlds.length);
+  const largerRegionCount = lessonCount % storyWorlds.length;
 
   return storyWorlds.map((storyWorld, storyIndex) => {
+    const regionLessonCount =
+      baseLessonCount + (storyIndex < largerRegionCount ? 1 : 0);
     const startIndex = nextLessonIndex;
-    const isLastStoryWorld = storyIndex === storyWorlds.length - 1;
-    const endIndex = isLastStoryWorld
-      ? lessonCount - 1
-      : Math.min(
-          lessonCount - 1,
-          startIndex + storyWorld.lessonCount - 1,
-        );
+    const endIndex = startIndex + regionLessonCount - 1;
     nextLessonIndex = endIndex + 1;
 
     return { ...storyWorld, startIndex, endIndex };
@@ -167,9 +158,10 @@ export function LessonMap({
   onOpenWorld,
 }: LessonMapProps) {
   const { state } = useGame();
-  const activeStoryBreaks = storyWorldBreaks.filter(
-    (lessonIndex) => lessonIndex < worlds.length,
-  );
+  const storyPlan = createStoryRegions(worlds.length);
+  const activeStoryBreaks = storyPlan
+    .slice(1)
+    .map((storyWorld) => storyWorld.startIndex);
   const trailHeight =
     (worlds.length - 1) * NODE_GAP +
     activeStoryBreaks.length * STORY_WORLD_GAP +
@@ -199,7 +191,7 @@ export function LessonMap({
     };
   });
   const path = createSmoothPath(points);
-  const storyRegions = createStoryRegions(worlds.length).map(
+  const storyRegions = storyPlan.map(
     (storyWorld, storyIndex) => {
       const top =
         storyWorld.endIndex >= worlds.length - 1
