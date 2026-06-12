@@ -40,6 +40,100 @@ export type Course = {
 
 export type Mode = "learn" | "flashcards" | "quiz" | "review";
 
+export type ActivityType =
+  | "explore"
+  | "multiple-choice"
+  | "matching"
+  | "listening"
+  | "sentence-builder"
+  | "grammar-repair"
+  | "dialogue"
+  | "story-shuffle"
+  | "unit-challenge";
+
+export type ActivityQuestionKind =
+  | "explore-card"
+  | "multiple-choice"
+  | "matching-pair"
+  | "listening-choice"
+  | "sentence-builder";
+
+export type ActivityChoice = {
+  id: string;
+  text: string;
+};
+
+export type ActivityToken = {
+  id: string;
+  text: string;
+};
+
+export type ActivityQuestion = {
+  id: string;
+  semanticKey: string;
+  activityType: ActivityType;
+  kind: ActivityQuestionKind;
+  conceptIds: string[];
+  sourceWordIds: string[];
+  prompt: string;
+  answer: string;
+  audioText?: string;
+  choices?: ActivityChoice[];
+  correctChoiceId?: string;
+  tokens?: ActivityToken[];
+  explanation?: string;
+  isRetry?: boolean;
+};
+
+export type ActivityDefinition = {
+  type: ActivityType;
+  title: string;
+  description: string;
+  durationMinutes: number;
+  interactionCount: number;
+  xpReward: number;
+  available: boolean;
+};
+
+export type ActivitySession = {
+  id: string;
+  activityType: ActivityType;
+  worldId: string;
+  questions: ActivityQuestion[];
+  currentIndex: number;
+  correctCount: number;
+  answeredCount: number;
+  retryCounts: Record<string, number>;
+  startedAt: string;
+};
+
+export type ActivityResult = {
+  activityType: ActivityType;
+  worldId: string;
+  questionCount: number;
+  correctCount: number;
+  score: number;
+  stars: number;
+  xpGained: number;
+  conceptIds: string[];
+  completedAt: string;
+};
+
+export type ConceptMastery = {
+  seenCount: number;
+  correctCount: number;
+  incorrectCount: number;
+  lastPracticedAt?: string;
+  masteryEstimate: number;
+};
+
+export type ActivityProgress = {
+  completedSessions: number;
+  bestScore: number;
+  bestStars: number;
+  lastCompletedAt?: string;
+};
+
 export type AnswerRecord = {
   correct: number;
   incorrect: number;
@@ -55,10 +149,12 @@ export type WorldProgress = {
 };
 
 export type GameState = {
-  version: 1;
+  version: 2;
   xp: number;
   streak: number;
   lastActiveDate?: string;
   words: Record<string, AnswerRecord>;
   worlds: Record<string, WorldProgress>;
+  activities: Record<string, ActivityProgress>;
+  mastery: Record<string, ConceptMastery>;
 };

@@ -5,6 +5,7 @@ import type {
   World,
   WorldProgress,
 } from "../types";
+import { shuffle } from "./activityEngine";
 
 export const EMPTY_WORLD_PROGRESS: WorldProgress = {
   learnedWordIds: [],
@@ -53,15 +54,6 @@ export const getCurrentWorldIndex = (state: GameState, worlds: World[]) => {
     : firstUnclearedIndex;
 };
 
-const shuffle = <T,>(items: T[]) => {
-  const next = [...items];
-  for (let index = next.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
-    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
-  }
-  return next;
-};
-
 export const createLearningQueue = (
   world: World,
   count = SESSION_WORD_LIMIT,
@@ -107,10 +99,13 @@ export const createReviewQueue = (
 
 export const createQuizQueue = (state: GameState, world: World) => {
   const difficultIds = new Set(getReviewWords(state, world).map((word) => word.id));
-  const weighted = world.words.flatMap((word) =>
-    difficultIds.has(word.id) ? [word, word] : [word],
+  const difficult = shuffle(
+    world.words.filter((word) => difficultIds.has(word.id)),
   );
-  return shuffle(weighted).slice(0, SESSION_WORD_LIMIT);
+  const fresh = shuffle(
+    world.words.filter((word) => !difficultIds.has(word.id)),
+  );
+  return [...difficult, ...fresh].slice(0, SESSION_WORD_LIMIT);
 };
 
 export const getXpMilestone = (xp: number) => {

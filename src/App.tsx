@@ -1,22 +1,20 @@
 import { useState } from "react";
 import { AppHeader } from "./components/AppHeader";
 import { getCourse } from "./data/courses";
+import { ActivityScreen } from "./screens/ActivityScreen";
 import { CourseLandingScreen } from "./screens/CourseLandingScreen";
-import { FlashcardMode } from "./screens/FlashcardMode";
-import { LearnMode } from "./screens/LearnMode";
 import { MapScreen } from "./screens/MapScreen";
-import { QuizMode } from "./screens/QuizMode";
 import { WhatYouLearnedScreen } from "./screens/WhatYouLearnedScreen";
 import { WorldScreen } from "./screens/WorldScreen";
 import { useCourse } from "./state/CourseContext";
-import type { CourseId, Mode, World } from "./types";
+import type { ActivityType, CourseId, World } from "./types";
 
 type Screen =
   | { name: "course" }
   | { name: "map" }
   | { name: "learned" }
   | { name: "world"; world: World }
-  | { name: "mode"; world: World; mode: Mode };
+  | { name: "activity"; world: World; activityType: ActivityType };
 
 function App() {
   const { selectedCourseId, selectCourse } = useCourse();
@@ -28,9 +26,9 @@ function App() {
     setScreen({ name: "world", world });
   };
 
-  const openMode = (world: World, mode: Mode) => {
+  const openActivity = (world: World, activityType: ActivityType) => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-    setScreen({ name: "mode", world, mode });
+    setScreen({ name: "activity", world, activityType });
   };
 
   const showMap = () => {
@@ -53,6 +51,7 @@ function App() {
           onMap={showMap}
           onOpenLearned={() => setScreen({ name: "learned" })}
           onSwitchCourse={() => setScreen({ name: "course" })}
+          onReturnToCourseSelection={() => setScreen({ name: "course" })}
           compact={screen.name !== "map"}
         />
       )}
@@ -84,40 +83,18 @@ function App() {
         <WorldScreen
           world={screen.world}
           onBack={showMap}
-          onOpenMode={(mode) => openMode(screen.world, mode)}
+          onOpenActivity={(activityType) =>
+            openActivity(screen.world, activityType)
+          }
         />
       )}
 
-      {screen.name === "mode" && screen.mode === "learn" && (
-        <LearnMode
+      {screen.name === "activity" && (
+        <ActivityScreen
           world={screen.world}
+          activityType={screen.activityType}
           onBack={() => setScreen({ name: "world", world: screen.world })}
           onComplete={showMap}
-        />
-      )}
-
-      {screen.name === "mode" && screen.mode === "flashcards" && (
-        <FlashcardMode
-          world={screen.world}
-          onBack={() => setScreen({ name: "world", world: screen.world })}
-          onComplete={showMap}
-        />
-      )}
-
-      {screen.name === "mode" && screen.mode === "quiz" && (
-        <QuizMode
-          world={screen.world}
-          onBack={() => setScreen({ name: "world", world: screen.world })}
-          onComplete={showMap}
-        />
-      )}
-
-      {screen.name === "mode" && screen.mode === "review" && (
-        <QuizMode
-          world={screen.world}
-          onBack={() => setScreen({ name: "world", world: screen.world })}
-          onComplete={showMap}
-          review
         />
       )}
     </div>

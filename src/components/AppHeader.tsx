@@ -27,6 +27,7 @@ type AppHeaderProps = {
   onMap: () => void;
   onOpenLearned: () => void;
   onSwitchCourse: () => void;
+  onReturnToCourseSelection: () => void;
   compact?: boolean;
 };
 
@@ -36,6 +37,7 @@ export function AppHeader({
   onMap,
   onOpenLearned,
   onSwitchCourse,
+  onReturnToCourseSelection,
   compact = false,
 }: AppHeaderProps) {
   const { resetProgress, state } = useGame();
@@ -193,10 +195,25 @@ export function AppHeader({
             >
               <span aria-hidden="true">{course.icon}</span>
               <div>
-                <strong>{course.shortName}</strong>
-                <small>Switch Spanish course</small>
+                <strong>Switch Course</strong>
+                <small>Currently studying {course.shortName}</small>
               </div>
               <Repeat2 size={17} aria-hidden="true" />
+            </button>
+
+            <button
+              className="drawer-course-return-button"
+              type="button"
+              onClick={() => {
+                setIsDrawerOpen(false);
+                onReturnToCourseSelection();
+              }}
+            >
+              <Map size={17} aria-hidden="true" />
+              <span>
+                <strong>Return to Course Selection</strong>
+                <small>See A1-A2 Beginner and B1 Intermediate</small>
+              </span>
             </button>
 
             <button

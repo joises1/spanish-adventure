@@ -9,6 +9,7 @@ type SessionResultsProps = {
   learnedWords: VocabularyWord[];
   onContinue: () => void;
   onPracticeAgain?: () => void;
+  starsLabel?: string;
 };
 
 export function SessionResults({
@@ -19,6 +20,7 @@ export function SessionResults({
   learnedWords,
   onContinue,
   onPracticeAgain,
+  starsLabel = "World stars",
 }: SessionResultsProps) {
   return (
     <section className="results-card session-results">
@@ -35,7 +37,7 @@ export function SessionResults({
             <Star size={20} fill="currentColor" aria-hidden="true" />
           </span>
           <strong>{stars} / 3</strong>
-          <small>World stars</small>
+          <small>{starsLabel}</small>
         </div>
         <div>
           <span className="session-results__reward-icon session-results__reward-icon--xp">
