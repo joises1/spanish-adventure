@@ -14,99 +14,14 @@ import type {
   CourseId,
   GameState,
   VocabularyWord,
-  WorldProgress,
 } from "../types";
 import { useCourse } from "./CourseContext";
-
-const LEGACY_STORAGE_KEY = "spanish-adventure-progress-v1";
-const storageKey = (courseId: CourseId) =>
-  `spanish-adventure-progress-${courseId}-v1`;
-
-const dateKey = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const dayDifference = (from: string, to: string) => {
-  const [fromYear, fromMonth, fromDay] = from.split("-").map(Number);
-  const [toYear, toMonth, toDay] = to.split("-").map(Number);
-  return Math.round(
-    (Date.UTC(toYear, toMonth - 1, toDay) -
-      Date.UTC(fromYear, fromMonth - 1, fromDay)) /
-      86_400_000,
-  );
-};
-
-const createInitialState = (): GameState => ({
-  version: 2,
-  xp: 0,
-  streak: 1,
-  lastActiveDate: dateKey(),
-  words: {},
-  worlds: {},
-  activities: {},
-  mastery: {},
-});
-
-const refreshStreak = (state: GameState): GameState => {
-  const today = dateKey();
-  if (state.lastActiveDate === today) return state;
-
-  const difference = state.lastActiveDate
-    ? dayDifference(state.lastActiveDate, today)
-    : 1;
-
-  return {
-    ...state,
-    streak: difference === 1 ? Math.max(1, state.streak + 1) : 1,
-    lastActiveDate: today,
-  };
-};
-
-type PersistedGameState = Omit<
-  GameState,
-  "version" | "activities" | "mastery"
-> & {
-  version?: number;
-  activities?: GameState["activities"];
-  mastery?: GameState["mastery"];
-};
-
-const normalizeState = (state: PersistedGameState): GameState => ({
-  ...state,
-  version: 2,
-  worlds: Object.fromEntries(
-    Object.entries(state.worlds ?? {}).map(([worldId, progress]) => [
-      worldId,
-      {
-        ...progress,
-        learnedWordIds: progress.learnedWordIds ?? [],
-        collectedWordIds: progress.collectedWordIds ?? [],
-        completedSessions: progress.completedSessions ?? 0,
-      },
-    ]),
-  ),
-  activities: state.activities ?? {},
-  mastery: state.mastery ?? {},
-});
-
-const loadState = (courseId: CourseId): GameState => {
-  try {
-    const saved =
-      localStorage.getItem(storageKey(courseId)) ??
-      (courseId === "b1" ? localStorage.getItem(LEGACY_STORAGE_KEY) : null);
-    if (!saved) return createInitialState();
-    const parsed = JSON.parse(saved) as PersistedGameState;
-    if (parsed.version !== 1 && parsed.version !== 2) {
-      return createInitialState();
-    }
-    return refreshStreak(normalizeState(parsed));
-  } catch {
-    return createInitialState();
-  }
-};
+import {
+  createEmptyWorldProgress,
+  createInitialGameState,
+  getCourseStorageKey,
+  loadCourseGameState,
+} from "./progressState";
 
 type CourseStates = Record<CourseId, GameState>;
 
@@ -136,6 +51,10 @@ type GameContextValue = {
     words: VocabularyWord[],
     score: number,
   ) => void;
+  completeReview: (
+    activityType: "daily-review" | "mistake-review",
+    score: number,
+  ) => void;
   resetProgress: () => void;
 };
 
@@ -145,25 +64,20 @@ export function GameProvider({ children }: PropsWithChildren) {
   const { selectedCourseId } = useCourse();
   const activeCourseId = selectedCourseId ?? "b1";
   const [courseStates, setCourseStates] = useState<CourseStates>(() => ({
-    "a1-a2": loadState("a1-a2"),
-    b1: loadState("b1"),
+    "a1-a2": loadCourseGameState(localStorage, "a1-a2"),
+    b1: loadCourseGameState(localStorage, "b1"),
   }));
   const state = courseStates[activeCourseId];
 
-  const getEmptyWorldProgress = (): WorldProgress => ({
-    learnedWordIds: [],
-    collectedWordIds: [],
-    completedSessions: 0,
-    quizAnswers: 0,
-    quizCorrect: 0,
-  });
-
   useEffect(() => {
     localStorage.setItem(
-      storageKey("a1-a2"),
+      getCourseStorageKey("a1-a2"),
       JSON.stringify(courseStates["a1-a2"]),
     );
-    localStorage.setItem(storageKey("b1"), JSON.stringify(courseStates.b1));
+    localStorage.setItem(
+      getCourseStorageKey("b1"),
+      JSON.stringify(courseStates.b1),
+    );
   }, [courseStates]);
 
   const updateActiveState = useCallback(
@@ -180,7 +94,7 @@ export function GameProvider({ children }: PropsWithChildren) {
     (worldId: string, word: VocabularyWord) => {
       updateActiveState((current) => {
         const worldProgress =
-          current.worlds[worldId] ?? getEmptyWorldProgress();
+          current.worlds[worldId] ?? createEmptyWorldProgress();
         if (worldProgress.learnedWordIds.includes(word.id)) return current;
 
         return {
@@ -207,7 +121,7 @@ export function GameProvider({ children }: PropsWithChildren) {
           incorrect: 0,
         };
         const worldProgress =
-          current.worlds[worldId] ?? getEmptyWorldProgress();
+          current.worlds[worldId] ?? createEmptyWorldProgress();
         const learnedWordIds = worldProgress.learnedWordIds.includes(word.id)
           ? worldProgress.learnedWordIds
           : [...worldProgress.learnedWordIds, word.id];
@@ -242,7 +156,7 @@ export function GameProvider({ children }: PropsWithChildren) {
     (worldId: string, words: VocabularyWord[]) => {
       updateActiveState((current) => {
         const worldProgress =
-          current.worlds[worldId] ?? getEmptyWorldProgress();
+          current.worlds[worldId] ?? createEmptyWorldProgress();
         const collectedWordIds = [
           ...new Set([
             ...worldProgress.collectedWordIds,
@@ -277,7 +191,7 @@ export function GameProvider({ children }: PropsWithChildren) {
       updateActiveState((current) => {
         const now = new Date().toISOString();
         const worldProgress =
-          current.worlds[worldId] ?? getEmptyWorldProgress();
+          current.worlds[worldId] ?? createEmptyWorldProgress();
         const uniqueWords = words.filter(
           (word, index, allWords) =>
             allWords.findIndex((item) => item.id === word.id) === index,
@@ -290,6 +204,7 @@ export function GameProvider({ children }: PropsWithChildren) {
         ];
         const nextWordRecords = { ...current.words };
         const nextMastery = { ...current.mastery };
+        const nextMistakes = { ...current.mistakes };
 
         uniqueWords.forEach((word) => {
           const record = nextWordRecords[word.id] ?? {
@@ -321,6 +236,19 @@ export function GameProvider({ children }: PropsWithChildren) {
               (correctCount / Math.max(1, correctCount + incorrectCount)) * 100,
             ),
           };
+
+          if (!isCorrect) {
+            const mistake = nextMistakes[word.id];
+            nextMistakes[word.id] = {
+              conceptId: word.id,
+              worldId,
+              activityType: _activityType,
+              incorrectCount: (mistake?.incorrectCount ?? 0) + 1,
+              lastIncorrectAt: now,
+              correctedAnswer: word.en,
+              example: word.example,
+            };
+          }
         });
 
         return {
@@ -328,6 +256,7 @@ export function GameProvider({ children }: PropsWithChildren) {
           xp: current.xp + (isCorrect ? 10 : 2),
           words: nextWordRecords,
           mastery: nextMastery,
+          mistakes: nextMistakes,
           worlds: {
             ...current.worlds,
             [worldId]: {
@@ -353,7 +282,7 @@ export function GameProvider({ children }: PropsWithChildren) {
       updateActiveState((current) => {
         const now = new Date().toISOString();
         const worldProgress =
-          current.worlds[worldId] ?? getEmptyWorldProgress();
+          current.worlds[worldId] ?? createEmptyWorldProgress();
         const uniqueWords = words.filter(
           (word, index, allWords) =>
             allWords.findIndex((item) => item.id === word.id) === index,
@@ -406,7 +335,7 @@ export function GameProvider({ children }: PropsWithChildren) {
     ) => {
       updateActiveState((current) => {
         const worldProgress =
-          current.worlds[worldId] ?? getEmptyWorldProgress();
+          current.worlds[worldId] ?? createEmptyWorldProgress();
         const collectedWordIds = [
           ...new Set([
             ...worldProgress.collectedWordIds,
@@ -448,8 +377,37 @@ export function GameProvider({ children }: PropsWithChildren) {
     [updateActiveState],
   );
 
+  const completeReview = useCallback(
+    (
+      activityType: "daily-review" | "mistake-review",
+      score: number,
+    ) => {
+      updateActiveState((current) => {
+        const activityKey = `review:${activityType}`;
+        const progress = current.activities[activityKey] ?? {
+          completedSessions: 0,
+          bestScore: 0,
+          bestStars: 0,
+        };
+        return {
+          ...current,
+          activities: {
+            ...current.activities,
+            [activityKey]: {
+              completedSessions: progress.completedSessions + 1,
+              bestScore: Math.max(progress.bestScore, score),
+              bestStars: Math.max(progress.bestStars, scoreToStars(score)),
+              lastCompletedAt: new Date().toISOString(),
+            },
+          },
+        };
+      });
+    },
+    [updateActiveState],
+  );
+
   const resetProgress = useCallback(() => {
-    updateActiveState(() => createInitialState());
+    updateActiveState(() => createInitialGameState());
   }, [updateActiveState]);
 
   const value = useMemo(
@@ -461,10 +419,12 @@ export function GameProvider({ children }: PropsWithChildren) {
       recordActivitySeen,
       recordActivityAnswer,
       completeActivity,
+      completeReview,
       resetProgress,
     }),
     [
       completeActivity,
+      completeReview,
       completeSession,
       markLearned,
       recordActivitySeen,

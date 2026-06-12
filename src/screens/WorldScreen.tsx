@@ -1,4 +1,5 @@
 import {
+  ArrowRight,
   BookOpen,
   CheckCircle2,
   Clock3,
@@ -8,6 +9,7 @@ import {
   Puzzle,
   Sparkles,
   Star,
+  Target,
   TextCursorInput,
   Trophy,
   X,
@@ -64,6 +66,31 @@ export function WorldScreen({
   const activities = HUB_ACTIVITY_TYPES.map((type) =>
     ACTIVITY_DEFINITIONS.find((activity) => activity.type === type),
   ).filter((activity) => Boolean(activity));
+  const unitMastery = Math.round(
+    world.words.reduce(
+      (total, word) => total + (state.mastery[word.id]?.masteryEstimate ?? 0),
+      0,
+    ) / Math.max(1, world.words.length),
+  );
+  const recommendedActivity =
+    activities.find((activity) => {
+      if (!activity?.available) return false;
+      const progress =
+        state.activities[getActivityProgressKey(world.id, activity.type)];
+      return (progress?.completedSessions ?? 0) === 0;
+    }) ??
+    activities
+      .filter((activity) => activity?.available)
+      .sort((first, second) => {
+        if (!first || !second) return 0;
+        const firstScore =
+          state.activities[getActivityProgressKey(world.id, first.type)]
+            ?.bestScore ?? 0;
+        const secondScore =
+          state.activities[getActivityProgressKey(world.id, second.type)]
+            ?.bestScore ?? 0;
+        return firstScore - secondScore;
+      })[0];
 
   return (
     <main
@@ -110,9 +137,50 @@ export function WorldScreen({
           <ProgressBar value={completion} color={world.accent} />
           <small>
             {accuracy ? `${accuracy}% answer accuracy` : "Choose any activity"}
-            {stars > 0 ? ` / ${stars} world stars` : ""}
+            {stars > 0 ? ` / ${stars} world stars` : ""} / {unitMastery}% mastery
           </small>
         </section>
+
+        <section className="activity-hub__objective">
+          <span>
+            <Target size={20} aria-hidden="true" />
+          </span>
+          <div>
+            <small>Unit objective</small>
+            <strong>{world.description}</strong>
+          </div>
+          <div
+            className="unit-mastery-ring"
+            style={
+              {
+                "--mastery": `${unitMastery * 3.6}deg`,
+              } as React.CSSProperties
+            }
+            aria-label={`${unitMastery}% overall unit mastery`}
+          >
+            <span>{unitMastery}%</span>
+          </div>
+        </section>
+
+        {recommendedActivity && (
+          <button
+            className="activity-continue-button"
+            type="button"
+            onClick={() => onOpenActivity(recommendedActivity.type)}
+          >
+            <span>
+              <Sparkles size={18} aria-hidden="true" />
+            </span>
+            <div>
+              <small>Recommended next</small>
+              <strong>{recommendedActivity.title}</strong>
+            </div>
+            <span>
+              Continue
+              <ArrowRight size={17} aria-hidden="true" />
+            </span>
+          </button>
+        )}
 
         <div className="activity-hub__intro">
           <div>
@@ -133,6 +201,9 @@ export function WorldScreen({
                 getActivityProgressKey(world.id, activity.type)
               ];
             const completed = (progress?.completedSessions ?? 0) > 0;
+            const ringProgress = completed
+              ? Math.max(25, progress?.bestScore ?? 0)
+              : 0;
 
             return (
               <button
@@ -149,8 +220,18 @@ export function WorldScreen({
                   activity.available ? "" : " Coming in the next sprint."
                 }`}
               >
-                <span className="activity-card__icon">
-                  {activityIcons[activity.type]}
+                <span
+                  className="activity-card__ring"
+                  style={
+                    {
+                      "--activity-ring": `${ringProgress * 3.6}deg`,
+                    } as React.CSSProperties
+                  }
+                  aria-label={`${ringProgress}% activity completion`}
+                >
+                  <span className="activity-card__icon">
+                    {activityIcons[activity.type]}
+                  </span>
                 </span>
                 <span className="activity-card__copy">
                   <span className="activity-card__title-row">
@@ -173,6 +254,10 @@ export function WorldScreen({
                   <span>
                     <Star size={13} fill="currentColor" aria-hidden="true" />
                     {progress?.bestStars ?? 0}/3
+                  </span>
+                  <span>
+                    <Target size={13} aria-hidden="true" />
+                    {progress?.bestScore ?? 0}% mastery
                   </span>
                 </span>
                 {!activity.available && (

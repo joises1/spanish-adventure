@@ -76,7 +76,7 @@ export const ACTIVITY_DEFINITIONS: ActivityDefinition[] = [
     durationMinutes: 4,
     interactionCount: 6,
     xpReward: 75,
-    available: false,
+    available: true,
   },
   {
     type: "story-shuffle",
@@ -85,7 +85,7 @@ export const ACTIVITY_DEFINITIONS: ActivityDefinition[] = [
     durationMinutes: 4,
     interactionCount: 6,
     xpReward: 80,
-    available: false,
+    available: true,
   },
   {
     type: "unit-challenge",
@@ -94,7 +94,7 @@ export const ACTIVITY_DEFINITIONS: ActivityDefinition[] = [
     durationMinutes: 4,
     interactionCount: 10,
     xpReward: 100,
-    available: false,
+    available: true,
   },
 ];
 

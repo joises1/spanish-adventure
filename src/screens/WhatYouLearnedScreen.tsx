@@ -96,8 +96,8 @@ export function WhatYouLearnedScreen({
           </span>
           <h1>What You Learned</h1>
           <p>
-            Words appear here after you finish a learning, flashcard, quiz, or
-            review session.
+            Words appear here only after you complete an activity or unit
+            challenge in this course.
           </p>
         </div>
         <div className="dictionary-progress">
@@ -195,8 +195,8 @@ export function WhatYouLearnedScreen({
           </span>
           <h2>Your first words are waiting</h2>
           <p>
-            Finish any 10-item session and the words you practiced will appear
-            here.
+            Finish any short unit activity and the words you practiced will
+            appear here.
           </p>
           <button className="primary-button" type="button" onClick={onBack}>
             Explore the map

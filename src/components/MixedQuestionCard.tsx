@@ -1,0 +1,238 @@
+import {
+  ArrowRight,
+  Check,
+  Headphones,
+  MessageCircle,
+  RotateCcw,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { useState } from "react";
+import { normalizeSentence } from "../engine/activityEngine";
+import type { ActivityQuestion, ActivityToken } from "../types";
+import { SpeakerButton } from "./SpeakerButton";
+
+type MixedQuestionCardProps = {
+  question: ActivityQuestion;
+  onResult: (isCorrect: boolean) => void;
+  onContinue: () => void;
+  isLast: boolean;
+};
+
+export function MixedQuestionCard({
+  question,
+  onResult,
+  onContinue,
+  isLast,
+}: MixedQuestionCardProps) {
+  const [selectedChoiceId, setSelectedChoiceId] = useState<string>();
+  const [selectedTokens, setSelectedTokens] = useState<ActivityToken[]>([]);
+  const [answered, setAnswered] = useState(false);
+  const builtSentence = selectedTokens.map((token) => token.text).join(" ");
+  const isSentence = question.kind === "sentence-builder";
+  const isCorrect = isSentence
+    ? answered &&
+      normalizeSentence(builtSentence) === normalizeSentence(question.answer)
+    : selectedChoiceId === question.correctChoiceId;
+
+  const choose = (choiceId: string) => {
+    if (answered) return;
+    const correct = choiceId === question.correctChoiceId;
+    setSelectedChoiceId(choiceId);
+    setAnswered(true);
+    onResult(correct);
+  };
+
+  const addToken = (token: ActivityToken) => {
+    if (answered) return;
+    setSelectedTokens((current) => [...current, token]);
+  };
+
+  const removeToken = (token: ActivityToken) => {
+    if (answered) return;
+    setSelectedTokens((current) =>
+      current.filter((item) => item.id !== token.id),
+    );
+  };
+
+  const checkSentence = () => {
+    if (answered || selectedTokens.length === 0) return;
+    const correct =
+      normalizeSentence(builtSentence) === normalizeSentence(question.answer);
+    setAnswered(true);
+    onResult(correct);
+  };
+
+  const selectedIds = new Set(selectedTokens.map((token) => token.id));
+  const availableTokens =
+    question.tokens?.filter((token) => !selectedIds.has(token.id)) ?? [];
+
+  return (
+    <section className="mixed-question-card">
+      <div className="mixed-question-card__heading">
+        <span className="card-label">{question.skill ?? "Practice"}</span>
+        {(question.audioText || question.kind === "listening-choice") && (
+          <SpeakerButton
+            text={question.audioText ?? question.prompt}
+            label="Play Spanish audio"
+          />
+        )}
+      </div>
+
+      {question.kind === "listening-choice" ? (
+        <div className="mixed-listening-prompt">
+          <Headphones size={25} aria-hidden="true" />
+          <h2>Listen, then choose the meaning.</h2>
+        </div>
+      ) : (
+        <h2>{question.prompt}</h2>
+      )}
+
+      {question.dialogueTurns && (
+        <div className="dialogue-transcript">
+          {question.dialogueTurns.map((turn) => (
+            <article
+              className={turn.isLearnerTurn ? "is-learner" : ""}
+              key={turn.id}
+            >
+              <div>
+                <small>{turn.speaker}</small>
+                <span>{turn.text}</span>
+              </div>
+              <SpeakerButton
+                text={turn.text}
+                label={`Hear ${turn.speaker}'s line`}
+              />
+            </article>
+          ))}
+        </div>
+      )}
+
+      {question.storySentences && (
+        <div className="challenge-story">
+          {question.storySentences
+            .slice()
+            .sort((first, second) => first.position - second.position)
+            .map((sentence) => (
+              <div key={sentence.id}>
+                <span>{sentence.es}</span>
+                <SpeakerButton
+                  text={sentence.es}
+                  label="Hear this story sentence"
+                />
+              </div>
+            ))}
+        </div>
+      )}
+
+      {isSentence ? (
+        <>
+          <div
+            className={`sentence-builder__answer ${
+              answered
+                ? isCorrect
+                  ? "sentence-builder__answer--correct"
+                  : "sentence-builder__answer--wrong"
+                : ""
+            }`}
+          >
+            {selectedTokens.length === 0 && (
+              <span className="sentence-builder__placeholder">
+                Build your Spanish sentence
+              </span>
+            )}
+            {selectedTokens.map((token) => (
+              <button
+                key={token.id}
+                type="button"
+                onClick={() => removeToken(token)}
+                disabled={answered}
+              >
+                {token.text}
+              </button>
+            ))}
+          </div>
+          <div className="sentence-builder__tiles">
+            {availableTokens.map((token) => (
+              <button
+                key={token.id}
+                type="button"
+                onClick={() => addToken(token)}
+                disabled={answered}
+              >
+                {token.text}
+              </button>
+            ))}
+          </div>
+          {!answered && (
+            <div className="sentence-builder__actions">
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => setSelectedTokens([])}
+                disabled={selectedTokens.length === 0}
+              >
+                <RotateCcw size={17} />
+                Clear
+              </button>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={checkSentence}
+                disabled={selectedTokens.length === 0}
+              >
+                Check
+                <Check size={18} />
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="choice-grid mixed-choice-grid">
+          {question.choices?.map((choice) => {
+            const chosen = selectedChoiceId === choice.id;
+            const correctChoice =
+              answered && choice.id === question.correctChoiceId;
+            const wrongChoice = chosen && !correctChoice;
+            return (
+              <button
+                className={`choice ${
+                  correctChoice ? "choice--correct" : ""
+                } ${wrongChoice ? "choice--wrong" : ""}`}
+                key={choice.id}
+                type="button"
+                onClick={() => choose(choice.id)}
+                disabled={answered}
+              >
+                <span>{choice.text}</span>
+                {correctChoice && <Check size={19} aria-hidden="true" />}
+                {wrongChoice && <X size={19} aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {answered && (
+        <div
+          className={`feedback ${
+            isCorrect ? "feedback--correct" : "feedback--gentle"
+          }`}
+          aria-live="polite"
+        >
+          <span className="feedback__icon">
+            {isCorrect ? <Sparkles size={21} /> : <MessageCircle size={21} />}
+          </span>
+          <div>
+            <strong>{isCorrect ? "Lovely work!" : "Here is the correction:"}</strong>
+            <span>{isCorrect ? question.explanation : question.explanation}</span>
+          </div>
+          <button className="primary-button" type="button" onClick={onContinue}>
+            {isLast ? "See result" : "Continue"}
+            <ArrowRight size={18} />
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}

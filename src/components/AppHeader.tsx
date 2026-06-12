@@ -1,5 +1,7 @@
 import {
+  BookMarked,
   BookOpenCheck,
+  CalendarCheck,
   Flame,
   Map,
   Menu,
@@ -26,6 +28,8 @@ type AppHeaderProps = {
   worlds: World[];
   onMap: () => void;
   onOpenLearned: () => void;
+  onOpenMistakes: () => void;
+  onOpenDailyReview: () => void;
   onSwitchCourse: () => void;
   onReturnToCourseSelection: () => void;
   compact?: boolean;
@@ -36,6 +40,8 @@ export function AppHeader({
   worlds,
   onMap,
   onOpenLearned,
+  onOpenMistakes,
+  onOpenDailyReview,
   onSwitchCourse,
   onReturnToCourseSelection,
   compact = false,
@@ -76,6 +82,16 @@ export function AppHeader({
   const openLearned = () => {
     setIsDrawerOpen(false);
     onOpenLearned();
+  };
+
+  const openMistakes = () => {
+    setIsDrawerOpen(false);
+    onOpenMistakes();
+  };
+
+  const openDailyReview = () => {
+    setIsDrawerOpen(false);
+    onOpenDailyReview();
   };
 
   const handleReset = () => {
@@ -229,6 +245,23 @@ export function AppHeader({
                 <small>{learnedWordCount} words from completed sessions</small>
               </div>
             </button>
+
+            <div className="drawer-review-grid">
+              <button type="button" onClick={openDailyReview}>
+                <CalendarCheck size={20} aria-hidden="true" />
+                <span>
+                  <strong>Daily Review</strong>
+                  <small>5-10 adaptive questions</small>
+                </span>
+              </button>
+              <button type="button" onClick={openMistakes}>
+                <BookMarked size={20} aria-hidden="true" />
+                <span>
+                  <strong>Mistake Notebook</strong>
+                  <small>{Object.keys(state.mistakes).length} corrections</small>
+                </span>
+              </button>
+            </div>
 
             <VoiceSettings embedded />
 

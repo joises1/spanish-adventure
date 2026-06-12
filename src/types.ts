@@ -49,14 +49,24 @@ export type ActivityType =
   | "grammar-repair"
   | "dialogue"
   | "story-shuffle"
-  | "unit-challenge";
+  | "unit-challenge"
+  | "daily-review"
+  | "mistake-review";
 
 export type ActivityQuestionKind =
   | "explore-card"
   | "multiple-choice"
   | "matching-pair"
   | "listening-choice"
-  | "sentence-builder";
+  | "sentence-builder"
+  | "dialogue-choice"
+  | "dialogue-order"
+  | "dialogue-fill"
+  | "dialogue-listening"
+  | "dialogue-role"
+  | "story-order"
+  | "story-comprehension"
+  | "grammar-repair";
 
 export type ActivityChoice = {
   id: string;
@@ -67,6 +77,30 @@ export type ActivityToken = {
   id: string;
   text: string;
 };
+
+export type DialogueTurn = {
+  id: string;
+  speaker: string;
+  text: string;
+  translation?: string;
+  isLearnerTurn?: boolean;
+};
+
+export type StorySentence = {
+  id: string;
+  position: number;
+  es: string;
+  en: string;
+  sourceWordIds: string[];
+};
+
+export type ActivitySkill =
+  | "vocabulary"
+  | "listening"
+  | "sentence-building"
+  | "grammar"
+  | "dialogue"
+  | "story";
 
 export type ActivityQuestion = {
   id: string;
@@ -81,6 +115,11 @@ export type ActivityQuestion = {
   choices?: ActivityChoice[];
   correctChoiceId?: string;
   tokens?: ActivityToken[];
+  dialogueTurns?: DialogueTurn[];
+  storySentences?: StorySentence[];
+  orderedItemIds?: string[];
+  sourceWorldId?: string;
+  skill?: ActivitySkill;
   explanation?: string;
   isRetry?: boolean;
 };
@@ -134,6 +173,16 @@ export type ActivityProgress = {
   lastCompletedAt?: string;
 };
 
+export type MistakeRecord = {
+  conceptId: string;
+  worldId: string;
+  activityType: ActivityType;
+  incorrectCount: number;
+  lastIncorrectAt: string;
+  correctedAnswer: string;
+  example?: Example;
+};
+
 export type AnswerRecord = {
   correct: number;
   incorrect: number;
@@ -149,7 +198,7 @@ export type WorldProgress = {
 };
 
 export type GameState = {
-  version: 2;
+  version: 3;
   xp: number;
   streak: number;
   lastActiveDate?: string;
@@ -157,4 +206,5 @@ export type GameState = {
   worlds: Record<string, WorldProgress>;
   activities: Record<string, ActivityProgress>;
   mastery: Record<string, ConceptMastery>;
+  mistakes: Record<string, MistakeRecord>;
 };
