@@ -19,9 +19,100 @@ type TrailPoint = {
   y: number;
 };
 
+type StoryWorld = {
+  id: string;
+  name: string;
+  subtitle: string;
+  icon: string;
+  theme: string;
+  lessonCount: number;
+  landmarks: string[];
+};
+
 const NODE_GAP = 184;
+const STORY_WORLD_GAP = 116;
 const TRAIL_PADDING = 180;
 const xPositions = [28, 70, 34, 76, 25, 65, 38, 73];
+const storyWorlds: StoryWorld[] = [
+  {
+    id: "pueblo",
+    name: "Pueblo",
+    subtitle: "Green hills and village paths",
+    icon: "🏡",
+    theme: "pueblo",
+    lessonCount: 6,
+    landmarks: ["🏡", "🌳", "🌻"],
+  },
+  {
+    id: "campo",
+    name: "Campo",
+    subtitle: "Golden fields and windmill country",
+    icon: "🌾",
+    theme: "campo",
+    lessonCount: 6,
+    landmarks: ["🌾", "🌻", "🌀"],
+  },
+  {
+    id: "costa",
+    name: "Costa",
+    subtitle: "Ocean breezes and sunny beaches",
+    icon: "🏖️",
+    theme: "costa",
+    lessonCount: 6,
+    landmarks: ["🌊", "⛵", "☀️"],
+  },
+  {
+    id: "ciudad-antigua",
+    name: "Ciudad Antigua",
+    subtitle: "Stone streets and historic plazas",
+    icon: "🏛️",
+    theme: "ciudad",
+    lessonCount: 6,
+    landmarks: ["🏛️", "🪨", "🕯️"],
+  },
+  {
+    id: "reino-magico",
+    name: "Reino Mágico",
+    subtitle: "Moonlit paths and enchanted stars",
+    icon: "✨",
+    theme: "magico",
+    lessonCount: 5,
+    landmarks: ["🌙", "⭐", "🔮"],
+  },
+  {
+    id: "cielo",
+    name: "Cielo",
+    subtitle: "Cloud kingdoms and floating islands",
+    icon: "☁️",
+    theme: "cielo",
+    lessonCount: 5,
+    landmarks: ["☁️", "🏝️", "🌈"],
+  },
+];
+const storyWorldBreaks = storyWorlds
+  .slice(0, -1)
+  .reduce<number[]>((breaks, storyWorld) => {
+    const previousBreak = breaks[breaks.length - 1] ?? 0;
+    return [...breaks, previousBreak + storyWorld.lessonCount];
+  }, []);
+
+const createStoryRegions = (lessonCount: number) => {
+  let nextLessonIndex = 0;
+
+  return storyWorlds.map((storyWorld, storyIndex) => {
+    const startIndex = nextLessonIndex;
+    const isLastStoryWorld = storyIndex === storyWorlds.length - 1;
+    const endIndex = isLastStoryWorld
+      ? lessonCount - 1
+      : Math.min(
+          lessonCount - 1,
+          startIndex + storyWorld.lessonCount - 1,
+        );
+    nextLessonIndex = endIndex + 1;
+
+    return { ...storyWorld, startIndex, endIndex };
+  });
+};
 
 const createSmoothPath = (points: TrailPoint[]) => {
   if (points.length === 0) return "";
@@ -49,7 +140,13 @@ export function LessonMap({
   onOpenWorld,
 }: LessonMapProps) {
   const { state } = useGame();
-  const trailHeight = (worlds.length - 1) * NODE_GAP + TRAIL_PADDING * 2;
+  const activeStoryBreaks = storyWorldBreaks.filter(
+    (lessonIndex) => lessonIndex < worlds.length,
+  );
+  const trailHeight =
+    (worlds.length - 1) * NODE_GAP +
+    activeStoryBreaks.length * STORY_WORLD_GAP +
+    TRAIL_PADDING * 2;
   const progress = useMemo(
     () =>
       worlds.map((world) => ({
@@ -60,11 +157,56 @@ export function LessonMap({
   );
   const allWorldsCleared = progress.every(({ stars }) => stars > 0);
   const currentIndex = getCurrentWorldIndex(state, worlds);
-  const points = worlds.map((_, index) => ({
-    x: xPositions[index % xPositions.length],
-    y: trailHeight - TRAIL_PADDING - index * NODE_GAP,
-  }));
+  const points = worlds.map((_, index) => {
+    const completedStoryWorlds = activeStoryBreaks.filter(
+      (lessonIndex) => index >= lessonIndex,
+    ).length;
+
+    return {
+      x: xPositions[index % xPositions.length],
+      y:
+        trailHeight -
+        TRAIL_PADDING -
+        index * NODE_GAP -
+        completedStoryWorlds * STORY_WORLD_GAP,
+    };
+  });
   const path = createSmoothPath(points);
+  const storyRegions = createStoryRegions(worlds.length).map(
+    (storyWorld, storyIndex) => {
+      const top =
+        storyWorld.endIndex >= worlds.length - 1
+          ? 0
+          : (points[storyWorld.endIndex].y +
+              points[storyWorld.endIndex + 1].y) /
+            2;
+      const bottom =
+        storyWorld.startIndex === 0
+          ? trailHeight
+          : (points[storyWorld.startIndex - 1].y +
+              points[storyWorld.startIndex].y) /
+            2;
+      const isComplete = progress
+        .slice(storyWorld.startIndex, storyWorld.endIndex + 1)
+        .every(({ stars }) => stars > 0);
+
+      return {
+        ...storyWorld,
+        storyIndex,
+        top,
+        height: bottom - top,
+        isComplete,
+      };
+    },
+  );
+  const storyWorldByLessonIndex = new Map(
+    storyRegions.flatMap((storyWorld) =>
+      Array.from(
+        { length: storyWorld.endIndex - storyWorld.startIndex + 1 },
+        (_, offset) => [storyWorld.startIndex + offset, storyWorld] as const,
+      ),
+    ),
+  );
 
   useEffect(() => {
     const destinationId =
@@ -88,24 +230,59 @@ export function LessonMap({
       style={{ "--trail-height": `${trailHeight}px` } as React.CSSProperties}
       aria-label="Spanish adventure lesson map"
     >
-      <div className="lesson-map__sky" aria-hidden="true">
-        <span className="map-cloud map-cloud--one" />
-        <span className="map-cloud map-cloud--two" />
-        <span className="map-cloud map-cloud--three" />
-        <span className="map-spark map-spark--one">★</span>
-        <span className="map-spark map-spark--two">★</span>
-        <span className="map-spark map-spark--three">✦</span>
-        <span className="spanish-flag spanish-flag--one" />
-        <span className="spanish-flag spanish-flag--two" />
-      </div>
+      {storyRegions.map((storyWorld) => (
+        <section
+          className={`story-world story-world--${storyWorld.theme} ${
+            storyWorld.storyIndex % 2 === 1 ? "story-world--reverse" : ""
+          }`}
+          key={storyWorld.id}
+          style={
+            {
+              "--story-top": `${storyWorld.top}px`,
+              "--story-height": `${storyWorld.height}px`,
+            } as React.CSSProperties
+          }
+          aria-label={`${storyWorld.name}: ${storyWorld.subtitle}`}
+        >
+          <div className="story-world__heading">
+            <span aria-hidden="true">{storyWorld.icon}</span>
+            <div>
+              <small>World {storyWorld.storyIndex + 1}</small>
+              <strong>{storyWorld.name}</strong>
+              <em>{storyWorld.subtitle}</em>
+            </div>
+          </div>
 
-      <div className="lesson-map__summit" aria-hidden="true">
-        <span className="summit-badge">
-          <Flag size={22} />
-        </span>
-        <strong>¡La cima!</strong>
-        <small>Your Spanish summit</small>
-      </div>
+          <div
+            className={`story-world__completion ${
+              storyWorld.isComplete ? "story-world__completion--done" : ""
+            }`}
+            aria-label={
+              storyWorld.isComplete
+                ? `${storyWorld.name} completed`
+                : `${storyWorld.name} completion marker`
+            }
+          >
+            {storyWorld.isComplete ? (
+              <Check size={17} strokeWidth={3} aria-hidden="true" />
+            ) : (
+              <Flag size={17} aria-hidden="true" />
+            )}
+            <span>{storyWorld.isComplete ? "Complete" : "Finish"}</span>
+          </div>
+
+          <div className="story-world__scenery" aria-hidden="true">
+            {storyWorld.landmarks.map((landmark, landmarkIndex) => (
+              <span
+                className={`story-landmark story-landmark--${landmarkIndex + 1}`}
+                key={`${storyWorld.id}-${landmarkIndex}`}
+              >
+                {landmark}
+              </span>
+            ))}
+          </div>
+        </section>
+      ))}
 
       <svg
         className="lesson-map__path"
@@ -118,11 +295,13 @@ export function LessonMap({
       </svg>
 
       {worlds.map((world, index) => {
+        const storyWorld = storyWorldByLessonIndex.get(index);
         const { completion, stars } = progress[index];
         const hasProgress = completion > 0 || stars > 0;
         const isCurrent = !allWorldsCleared && index === currentIndex;
         const isCompleted = stars > 0 && !isCurrent;
         const isLocked = index > currentIndex && !hasProgress;
+        const isStoryEntrance = index === storyWorld?.startIndex;
         const point = points[index];
         const stateClass = isLocked
           ? "lesson-node--locked"
@@ -151,6 +330,12 @@ export function LessonMap({
             }
           >
             <div className="lesson-node__marker">
+              {isStoryEntrance && storyWorld && (
+                <span className="lesson-node__world-entrance">
+                  <span aria-hidden="true">{storyWorld.icon}</span>
+                  Enter {storyWorld.name}
+                </span>
+              )}
               <button
                 className="lesson-node__button"
                 type="button"
@@ -207,19 +392,6 @@ export function LessonMap({
           </article>
         );
       })}
-
-      <div className="lesson-map__start" aria-hidden="true">
-        <span>START</span>
-        <strong>¡Vamos!</strong>
-      </div>
-      <div
-        className="lesson-map__hills lesson-map__hills--back"
-        aria-hidden="true"
-      />
-      <div
-        className="lesson-map__hills lesson-map__hills--front"
-        aria-hidden="true"
-      />
     </section>
   );
 }
