@@ -4,15 +4,17 @@ import {
   Check,
   CircleHelp,
   PartyPopper,
-  RotateCcw,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
 import {
   createChoices,
   createQuizQueue,
-  getReviewWords,
+  createReviewQueue,
+  getStars,
+  getWorldProgress,
 } from "../engine/game";
 import { useGame } from "../state/GameContext";
 import type { VocabularyWord, World } from "../types";
@@ -21,6 +23,7 @@ import { ModeShell } from "./LearnMode";
 type QuizModeProps = {
   world: World;
   onBack: () => void;
+  onComplete: () => void;
   review?: boolean;
 };
 
@@ -31,10 +34,18 @@ const encouragement = [
   "Muy bien!",
 ];
 
-export function QuizMode({ world, onBack, review = false }: QuizModeProps) {
+export function QuizMode({
+  world,
+  onBack,
+  onComplete,
+  review = false,
+}: QuizModeProps) {
   const { state, recordAnswer } = useGame();
   const initialQueue = useMemo(
-    () => (review ? getReviewWords(state, world) : createQuizQueue(state, world)),
+    () =>
+      review
+        ? createReviewQueue(state, world)
+        : createQuizQueue(state, world),
     // The queue is intentionally fixed for this session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [review, world.id],
@@ -44,6 +55,10 @@ export function QuizMode({ world, onBack, review = false }: QuizModeProps) {
   const [selectedId, setSelectedId] = useState<string>();
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [finished, setFinished] = useState(false);
+  const [sessionStartXp, setSessionStartXp] = useState(() => state.xp);
+  const [initialUnlockedIds, setInitialUnlockedIds] = useState(
+    () => new Set(getWorldProgress(state, world.id).learnedWordIds),
+  );
   const word = queue[index];
 
   const choices = useMemo(
@@ -72,17 +87,26 @@ export function QuizMode({ world, onBack, review = false }: QuizModeProps) {
 
   const restart = () => {
     const nextQueue = review
-      ? getReviewWords(state, world)
+      ? createReviewQueue(state, world)
       : createQuizQueue(state, world);
     setQueue(nextQueue);
     setIndex(0);
     setSelectedId(undefined);
     setSessionCorrect(0);
     setFinished(false);
+    setSessionStartXp(state.xp);
+    setInitialUnlockedIds(
+      new Set(getWorldProgress(state, world.id).learnedWordIds),
+    );
   };
 
   if (finished) {
     const percentage = Math.round((sessionCorrect / queue.length) * 100);
+    const unlockedWords = queue.filter(
+      (queueWord, queueIndex) =>
+        !initialUnlockedIds.has(queueWord.id) &&
+        queue.findIndex((item) => item.id === queueWord.id) === queueIndex,
+    );
     return (
       <ModeShell
         world={world}
@@ -91,26 +115,15 @@ export function QuizMode({ world, onBack, review = false }: QuizModeProps) {
         onBack={onBack}
         icon={<PartyPopper size={19} />}
       >
-        <div className="results-card">
-          <span className="results-card__icon">
-            <PartyPopper size={35} />
-          </span>
-          <span className="eyebrow">Session result</span>
-          <h2>{percentage}%</h2>
-          <p>
-            You matched {sessionCorrect} of {queue.length} Spanish words to
-            their English meanings.
-          </p>
-          <div className="results-actions">
-            <button className="secondary-button" onClick={onBack}>
-              Back to world
-            </button>
-            <button className="primary-button" onClick={restart}>
-              <RotateCcw size={18} />
-              Practice again
-            </button>
-          </div>
-        </div>
+        <SessionResults
+          title={`${percentage}%`}
+          message={`You matched ${sessionCorrect} of ${queue.length} Spanish words to their English meanings.`}
+          stars={getStars(state, world)}
+          xpGained={Math.max(0, state.xp - sessionStartXp)}
+          unlockedWords={unlockedWords}
+          onContinue={onComplete}
+          onPracticeAgain={restart}
+        />
       </ModeShell>
     );
   }

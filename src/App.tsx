@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AppHeader } from "./components/AppHeader";
 import { FlashcardMode } from "./screens/FlashcardMode";
+import { DictionaryScreen } from "./screens/DictionaryScreen";
 import { LearnMode } from "./screens/LearnMode";
 import { MapScreen } from "./screens/MapScreen";
 import { QuizMode } from "./screens/QuizMode";
@@ -9,6 +10,7 @@ import type { Mode, World } from "./types";
 
 type Screen =
   | { name: "map" }
+  | { name: "dictionary" }
   | { name: "world"; world: World }
   | { name: "mode"; world: World; mode: Mode };
 
@@ -34,7 +36,14 @@ function App() {
     <div className="app">
       <AppHeader onMap={showMap} compact={screen.name !== "map"} />
 
-      {screen.name === "map" && <MapScreen onOpenWorld={openWorld} />}
+      {screen.name === "map" && (
+        <MapScreen
+          onOpenWorld={openWorld}
+          onOpenDictionary={() => setScreen({ name: "dictionary" })}
+        />
+      )}
+
+      {screen.name === "dictionary" && <DictionaryScreen onBack={showMap} />}
 
       {screen.name === "world" && (
         <WorldScreen
@@ -48,6 +57,7 @@ function App() {
         <LearnMode
           world={screen.world}
           onBack={() => setScreen({ name: "world", world: screen.world })}
+          onComplete={showMap}
         />
       )}
 
@@ -55,6 +65,7 @@ function App() {
         <FlashcardMode
           world={screen.world}
           onBack={() => setScreen({ name: "world", world: screen.world })}
+          onComplete={showMap}
         />
       )}
 
@@ -62,6 +73,7 @@ function App() {
         <QuizMode
           world={screen.world}
           onBack={() => setScreen({ name: "world", world: screen.world })}
+          onComplete={showMap}
         />
       )}
 
@@ -69,6 +81,7 @@ function App() {
         <QuizMode
           world={screen.world}
           onBack={() => setScreen({ name: "world", world: screen.world })}
+          onComplete={showMap}
           review
         />
       )}

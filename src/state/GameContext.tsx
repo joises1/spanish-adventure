@@ -119,6 +119,9 @@ export function GameProvider({ children }: PropsWithChildren) {
           quizAnswers: 0,
           quizCorrect: 0,
         };
+        const learnedWordIds = worldProgress.learnedWordIds.includes(word.id)
+          ? worldProgress.learnedWordIds
+          : [...worldProgress.learnedWordIds, word.id];
 
         return {
           ...current,
@@ -135,6 +138,7 @@ export function GameProvider({ children }: PropsWithChildren) {
             ...current.worlds,
             [worldId]: {
               ...worldProgress,
+              learnedWordIds,
               quizAnswers: worldProgress.quizAnswers + 1,
               quizCorrect: worldProgress.quizCorrect + (isCorrect ? 1 : 0),
             },

@@ -12,6 +12,9 @@ export const EMPTY_WORLD_PROGRESS: WorldProgress = {
   quizCorrect: 0,
 };
 
+export const SESSION_WORD_LIMIT = 10;
+export const XP_MILESTONE_SIZE = 250;
+
 export const getWorldProgress = (state: GameState, worldId: string) =>
   state.worlds[worldId] ?? EMPTY_WORLD_PROGRESS;
 
@@ -57,6 +60,11 @@ const shuffle = <T,>(items: T[]) => {
   return next;
 };
 
+export const createLearningQueue = (
+  world: World,
+  count = SESSION_WORD_LIMIT,
+) => shuffle(world.words).slice(0, count);
+
 export const createChoices = (
   correctWord: VocabularyWord,
   pool: VocabularyWord[],
@@ -89,12 +97,30 @@ export const getReviewWords = (state: GameState, world: World) => {
   return difficult.length > 0 ? difficult : world.words.slice(0, 6);
 };
 
+export const createReviewQueue = (
+  state: GameState,
+  world: World,
+  count = SESSION_WORD_LIMIT,
+) => shuffle(getReviewWords(state, world)).slice(0, count);
+
 export const createQuizQueue = (state: GameState, world: World) => {
   const difficultIds = new Set(getReviewWords(state, world).map((word) => word.id));
   const weighted = world.words.flatMap((word) =>
     difficultIds.has(word.id) ? [word, word] : [word],
   );
-  return shuffle(weighted);
+  return shuffle(weighted).slice(0, SESSION_WORD_LIMIT);
+};
+
+export const getXpMilestone = (xp: number) => {
+  const earnedInMilestone = xp % XP_MILESTONE_SIZE;
+  const target = xp - earnedInMilestone + XP_MILESTONE_SIZE;
+
+  return {
+    earnedInMilestone,
+    remaining: XP_MILESTONE_SIZE - earnedInMilestone,
+    target,
+    percentage: Math.round((earnedInMilestone / XP_MILESTONE_SIZE) * 100),
+  };
 };
 
 export const formatCount = (value: number, singular: string, plural?: string) =>

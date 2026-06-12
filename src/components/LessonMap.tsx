@@ -89,6 +89,33 @@ const storyWorlds: StoryWorld[] = [
     landmarks: ["☁️", "🏝️", "🌈"],
   },
 ];
+const transitionScenes = [
+  {
+    id: "pueblo-campo",
+    label: "Village hills become golden fields",
+    decorations: ["🌿", "🌾", "🌻"],
+  },
+  {
+    id: "campo-costa",
+    label: "Fields meet the sand and sea",
+    decorations: ["🌾", "🏖️", "🌊"],
+  },
+  {
+    id: "costa-ciudad",
+    label: "The beach path becomes an old stone road",
+    decorations: ["🐚", "🪨", "🏛️"],
+  },
+  {
+    id: "ciudad-magico",
+    label: "Old streets drift into enchanted night",
+    decorations: ["🏮", "✨", "🌙"],
+  },
+  {
+    id: "magico-cielo",
+    label: "Stars rise into clouds and floating islands",
+    decorations: ["⭐", "☁️", "🏝️"],
+  },
+];
 const storyWorldBreaks = storyWorlds
   .slice(0, -1)
   .reduce<number[]>((breaks, storyWorld) => {
@@ -247,7 +274,7 @@ export function LessonMap({
           <div className="story-world__heading">
             <span aria-hidden="true">{storyWorld.icon}</span>
             <div>
-              <small>World {storyWorld.storyIndex + 1}</small>
+              <small>Chapter {storyWorld.storyIndex + 1}</small>
               <strong>{storyWorld.name}</strong>
               <em>{storyWorld.subtitle}</em>
             </div>
@@ -283,6 +310,32 @@ export function LessonMap({
           </div>
         </section>
       ))}
+
+      {storyRegions.slice(0, -1).map((lowerWorld, transitionIndex) => {
+        const scene = transitionScenes[transitionIndex];
+        return (
+          <div
+            className={`story-transition story-transition--${scene.id}`}
+            key={scene.id}
+            style={
+              {
+                "--transition-top": `${lowerWorld.top - 110}px`,
+              } as React.CSSProperties
+            }
+            aria-label={scene.label}
+          >
+            {scene.decorations.map((decoration, decorationIndex) => (
+              <span
+                className={`story-transition__decoration story-transition__decoration--${decorationIndex + 1}`}
+                key={`${scene.id}-${decorationIndex}`}
+                aria-hidden="true"
+              >
+                {decoration}
+              </span>
+            ))}
+          </div>
+        );
+      })}
 
       <svg
         className="lesson-map__path"
@@ -333,7 +386,7 @@ export function LessonMap({
               {isStoryEntrance && storyWorld && (
                 <span className="lesson-node__world-entrance">
                   <span aria-hidden="true">{storyWorld.icon}</span>
-                  Enter {storyWorld.name}
+                  Welcome to {storyWorld.name}
                 </span>
               )}
               <button

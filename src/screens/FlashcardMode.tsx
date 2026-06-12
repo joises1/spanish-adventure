@@ -1,6 +1,12 @@
 import { ArrowLeft, ArrowRight, Layers3, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
+import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
+import {
+  createLearningQueue,
+  getStars,
+  getWorldProgress,
+} from "../engine/game";
 import { useGame } from "../state/GameContext";
 import type { World } from "../types";
 import { ModeShell } from "./LearnMode";
@@ -8,13 +14,24 @@ import { ModeShell } from "./LearnMode";
 type FlashcardModeProps = {
   world: World;
   onBack: () => void;
+  onComplete: () => void;
 };
 
-export function FlashcardMode({ world, onBack }: FlashcardModeProps) {
+export function FlashcardMode({
+  world,
+  onBack,
+  onComplete,
+}: FlashcardModeProps) {
+  const { markLearned, state } = useGame();
+  const [queue] = useState(() => createLearningQueue(world));
   const [index, setIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
-  const { markLearned } = useGame();
-  const word = world.words[index];
+  const [finished, setFinished] = useState(false);
+  const [sessionStartXp] = useState(() => state.xp);
+  const [initialUnlockedIds] = useState(
+    () => new Set(getWorldProgress(state, world.id).learnedWordIds),
+  );
+  const word = queue[index];
 
   useEffect(() => {
     markLearned(world.id, word);
@@ -23,9 +40,36 @@ export function FlashcardMode({ world, onBack }: FlashcardModeProps) {
   const move = (direction: number) => {
     setFlipped(false);
     setIndex((current) =>
-      Math.min(world.words.length - 1, Math.max(0, current + direction)),
+      Math.min(queue.length - 1, Math.max(0, current + direction)),
     );
   };
+
+  const unlockedWords = queue.filter(
+    (queueWord, queueIndex) =>
+      !initialUnlockedIds.has(queueWord.id) &&
+      queue.findIndex((item) => item.id === queueWord.id) === queueIndex,
+  );
+
+  if (finished) {
+    return (
+      <ModeShell
+        world={world}
+        title="Flashcards complete"
+        subtitle="A quick round, beautifully done"
+        onBack={onBack}
+        icon={<Layers3 size={19} />}
+      >
+        <SessionResults
+          title="Cards conquered!"
+          message="Ten words are now a little more familiar, and new ones have joined your dictionary."
+          stars={getStars(state, world)}
+          xpGained={Math.max(0, state.xp - sessionStartXp)}
+          unlockedWords={unlockedWords}
+          onContinue={onComplete}
+        />
+      </ModeShell>
+    );
+  }
 
   return (
     <ModeShell
@@ -35,6 +79,7 @@ export function FlashcardMode({ world, onBack }: FlashcardModeProps) {
       onBack={onBack}
       icon={<Layers3 size={19} />}
       current={index + 1}
+      total={queue.length}
     >
       <div
         className={`flashcard ${flipped ? "flashcard--flipped" : ""}`}
@@ -103,10 +148,11 @@ export function FlashcardMode({ world, onBack }: FlashcardModeProps) {
         </button>
         <button
           className="primary-button"
-          onClick={() => move(1)}
-          disabled={index === world.words.length - 1}
+          onClick={() =>
+            index === queue.length - 1 ? setFinished(true) : move(1)
+          }
         >
-          Next card
+          {index === queue.length - 1 ? "Finish session" : "Next card"}
           <ArrowRight size={18} />
         </button>
       </div>

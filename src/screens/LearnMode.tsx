@@ -1,19 +1,32 @@
 import { ArrowLeft, ArrowRight, BookOpen, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProgressBar } from "../components/ProgressBar";
+import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
+import {
+  createLearningQueue,
+  getStars,
+  getWorldProgress,
+} from "../engine/game";
 import { useGame } from "../state/GameContext";
 import type { World } from "../types";
 
 type LearnModeProps = {
   world: World;
   onBack: () => void;
+  onComplete: () => void;
 };
 
-export function LearnMode({ world, onBack }: LearnModeProps) {
+export function LearnMode({ world, onBack, onComplete }: LearnModeProps) {
+  const { markLearned, state } = useGame();
+  const [queue] = useState(() => createLearningQueue(world));
   const [index, setIndex] = useState(0);
-  const { markLearned } = useGame();
-  const word = world.words[index];
+  const [finished, setFinished] = useState(false);
+  const [sessionStartXp] = useState(() => state.xp);
+  const [initialUnlockedIds] = useState(
+    () => new Set(getWorldProgress(state, world.id).learnedWordIds),
+  );
+  const word = queue[index];
 
   useEffect(() => {
     markLearned(world.id, word);
@@ -21,18 +34,46 @@ export function LearnMode({ world, onBack }: LearnModeProps) {
 
   const move = (direction: number) => {
     setIndex((current) =>
-      Math.min(world.words.length - 1, Math.max(0, current + direction)),
+      Math.min(queue.length - 1, Math.max(0, current + direction)),
     );
   };
+
+  const unlockedWords = queue.filter(
+    (queueWord, queueIndex) =>
+      !initialUnlockedIds.has(queueWord.id) &&
+      queue.findIndex((item) => item.id === queueWord.id) === queueIndex,
+  );
+
+  if (finished) {
+    return (
+      <ModeShell
+        world={world}
+        title="Learn complete"
+        subtitle="Ten new connections made"
+        onBack={onBack}
+        icon={<BookOpen size={19} />}
+      >
+        <SessionResults
+          title="Lovely work!"
+          message="You explored ten Spanish words and added every new discovery to your dictionary."
+          stars={getStars(state, world)}
+          xpGained={Math.max(0, state.xp - sessionStartXp)}
+          unlockedWords={unlockedWords}
+          onContinue={onComplete}
+        />
+      </ModeShell>
+    );
+  }
 
   return (
     <ModeShell
       world={world}
       title="Learn"
-      subtitle="Spanish → English"
+      subtitle="Spanish to English, ten words at a time"
       onBack={onBack}
       icon={<BookOpen size={19} />}
       current={index + 1}
+      total={queue.length}
     >
       <article className="learn-card">
         <span className="card-label">Spanish</span>
@@ -80,10 +121,11 @@ export function LearnMode({ world, onBack }: LearnModeProps) {
         </button>
         <button
           className="primary-button"
-          onClick={() => move(1)}
-          disabled={index === world.words.length - 1}
+          onClick={() =>
+            index === queue.length - 1 ? setFinished(true) : move(1)
+          }
         >
-          Next word
+          {index === queue.length - 1 ? "Finish session" : "Next word"}
           <ArrowRight size={18} />
         </button>
       </div>
