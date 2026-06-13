@@ -4,9 +4,15 @@ import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
 import { createActivitySession } from "../engine/activityEngine";
 import { getWorldProgress } from "../engine/game";
+import { createSeededRandom } from "../engine/narrativeEngine";
+import {
+  getSnapshotNumber,
+  getSnapshotStringArray,
+} from "../engine/sessionRecovery";
 import { createProgressEventId } from "../state/progressEvents";
 import { useGame } from "../state/GameContext";
-import type { World } from "../types";
+import { useRecoverableSession } from "../state/SessionContext";
+import type { CourseId, World } from "../types";
 import { ModeShell } from "../screens/LearnMode";
 import {
   getNewlyCollectedWords,
@@ -15,28 +21,67 @@ import {
 } from "./activityHelpers";
 
 type ExploreActivityProps = {
+  courseId: CourseId;
   world: World;
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
 export function ExploreActivity({
+  courseId,
   world,
   onBack,
+  onBackToMap,
   onComplete,
 }: ExploreActivityProps) {
   const { completeActivity, recordActivitySeen, state } = useGame();
-  const [session] = useState(() => createActivitySession("explore", world));
-  const [index, setIndex] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [sessionStartXp] = useState(() => state.xp);
+  const recovery = useRecoverableSession({
+    courseId,
+    world,
+    activityType: "explore",
+  });
+  const [session] = useState(() => ({
+    ...createActivitySession(
+      "explore",
+      world,
+      createSeededRandom(recovery.seed),
+    ),
+    id: recovery.sessionId,
+  }));
+  const [index, setIndex] = useState(() =>
+    Math.min(
+      Math.max(0, recovery.restored?.index ?? 0),
+      Math.max(0, session.questions.length - 1),
+    ),
+  );
+  const [finished, setFinished] = useState(
+    () => recovery.restored?.status === "completed",
+  );
+  const [sessionStartXp] = useState(() =>
+    getSnapshotNumber(recovery.restored, "sessionStartXp", state.xp),
+  );
   const [initialCollectedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
+    () => {
+      const restoredIds = getSnapshotStringArray(
+        recovery.restored,
+        "initialCollectedIds",
+      );
+      return new Set(
+        restoredIds.length > 0
+          ? restoredIds
+          : getWorldProgress(state, world.id).collectedWordIds,
+      );
+    },
   );
   const recordedIds = useRef(new Set<string>());
   const completionStarted = useRef(false);
   const question = session.questions[index];
   const sessionWords = getSessionWords(world, session.questions);
+  const snapshotPayload = {
+    sessionStartXp,
+    initialCollectedIds: [...initialCollectedIds],
+  };
 
   const recordSeen = () => {
     if (!question || recordedIds.current.has(question.id)) return;
@@ -63,10 +108,26 @@ export function ExploreActivity({
         words: sessionWords,
         score: 100,
       });
+      recovery.checkpoint({
+        index,
+        total: session.questions.length,
+        correctCount: session.questions.length,
+        answeredCount: session.questions.length,
+        meaningful: false,
+        status: "completed",
+        payload: snapshotPayload,
+      });
       setFinished(true);
       return;
     }
-    setIndex((current) => current + 1);
+    const nextIndex = index + 1;
+    recovery.checkpoint({
+      index: nextIndex,
+      total: session.questions.length,
+      meaningful: true,
+      payload: snapshotPayload,
+    });
+    setIndex(nextIndex);
   };
 
   if (!question) {
@@ -76,6 +137,7 @@ export function ExploreActivity({
         title="Explore"
         subtitle="This unit has no vocabulary yet"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<BookOpen size={19} />}
       >
         <section className="activity-empty">
@@ -96,6 +158,7 @@ export function ExploreActivity({
         title="Explore complete"
         subtitle="New connections made"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<BookOpen size={19} />}
       >
         <SessionResults
@@ -122,6 +185,7 @@ export function ExploreActivity({
       title="Explore"
       subtitle="Spanish to English, one discovery at a time"
       onBack={onBack}
+      onBackToMap={onBackToMap}
       icon={<BookOpen size={19} />}
       current={index + 1}
       total={session.questions.length}
@@ -159,7 +223,16 @@ export function ExploreActivity({
       <div className="mode-actions">
         <button
           className="secondary-button"
-          onClick={() => setIndex((current) => Math.max(0, current - 1))}
+          onClick={() => {
+            const nextIndex = Math.max(0, index - 1);
+            recovery.checkpoint({
+              index: nextIndex,
+              total: session.questions.length,
+              meaningful: true,
+              payload: snapshotPayload,
+            });
+            setIndex(nextIndex);
+          }}
           disabled={index === 0}
         >
           <ArrowLeft size={18} />

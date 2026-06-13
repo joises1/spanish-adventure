@@ -7,10 +7,16 @@ import {
   shuffle,
 } from "../engine/activityEngine";
 import { getWorldProgress } from "../engine/game";
+import { createSeededRandom } from "../engine/narrativeEngine";
+import {
+  getSnapshotNumber,
+  getSnapshotStringArray,
+} from "../engine/sessionRecovery";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
-import type { ActivityQuestion, World } from "../types";
+import { useRecoverableSession } from "../state/SessionContext";
+import type { ActivityQuestion, CourseId, World } from "../types";
 import {
   getNewlyCollectedWords,
   getQuestionConcepts,
@@ -26,27 +32,70 @@ type MatchCard = {
 };
 
 type MatchingActivityProps = {
+  courseId: CourseId;
   world: World;
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
 export function MatchingActivity({
+  courseId,
   world,
   onBack,
+  onBackToMap,
   onComplete,
 }: MatchingActivityProps) {
   const { completeActivity, recordActivityAnswer, state } = useGame();
-  const [session] = useState(() => createActivitySession("matching", world));
-  const [matchedIds, setMatchedIds] = useState(() => new Set<string>());
+  const recovery = useRecoverableSession({
+    courseId,
+    world,
+    activityType: "matching",
+  });
+  const [session] = useState(() => ({
+    ...createActivitySession(
+      "matching",
+      world,
+      createSeededRandom(`${recovery.seed}:questions`),
+    ),
+    id: recovery.sessionId,
+  }));
+  const questionIds = useMemo(
+    () => new Set(session.questions.map((question) => question.id)),
+    [session.questions],
+  );
+  const [matchedIds, setMatchedIds] = useState(
+    () =>
+      new Set(
+        getSnapshotStringArray(recovery.restored, "matchedIds").filter((id) =>
+          questionIds.has(id),
+        ),
+      ),
+  );
   const [selected, setSelected] = useState<MatchCard>();
   const [feedback, setFeedback] = useState("Choose one card from each side.");
-  const [mistakes, setMistakes] = useState(0);
-  const [finished, setFinished] = useState(false);
+  const [mistakes, setMistakes] = useState(() =>
+    getSnapshotNumber(recovery.restored, "mistakes"),
+  );
+  const [finished, setFinished] = useState(
+    () => recovery.restored?.status === "completed",
+  );
   const [isProcessing, setIsProcessing] = useState(false);
-  const [sessionStartXp] = useState(() => state.xp);
+  const [sessionStartXp] = useState(() =>
+    getSnapshotNumber(recovery.restored, "sessionStartXp", state.xp),
+  );
   const [initialCollectedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
+    () => {
+      const restoredIds = getSnapshotStringArray(
+        recovery.restored,
+        "initialCollectedIds",
+      );
+      return new Set(
+        restoredIds.length > 0
+          ? restoredIds
+          : getWorldProgress(state, world.id).collectedWordIds,
+      );
+    },
   );
   const sessionWords = getSessionWords(world, session.questions);
   const processingRef = useRef(false);
@@ -74,8 +123,18 @@ export function MatchingActivity({
           text: question.answer,
         },
       ]),
+      createSeededRandom(`${recovery.seed}:cards`),
     ),
   );
+  const snapshotPayload = (
+    nextMatchedIds: Set<string>,
+    nextMistakes: number,
+  ) => ({
+    matchedIds: [...nextMatchedIds],
+    mistakes: nextMistakes,
+    sessionStartXp,
+    initialCollectedIds: [...initialCollectedIds],
+  });
 
   const chooseCard = (card: MatchCard) => {
     if (
@@ -119,7 +178,16 @@ export function MatchingActivity({
     });
 
     if (!isMatch) {
-      setMistakes((current) => current + 1);
+      const nextMistakes = mistakes + 1;
+      setMistakes(nextMistakes);
+      recovery.checkpoint({
+        index: matchedIds.size,
+        total: session.questions.length,
+        correctCount: matchedIds.size,
+        answeredCount: matchedIds.size + nextMistakes,
+        meaningful: true,
+        payload: snapshotPayload(matchedIds, nextMistakes),
+      });
       setFeedback("Not this pair. Take a breath and try another match.");
       setSelected(undefined);
       window.setTimeout(() => {
@@ -149,9 +217,26 @@ export function MatchingActivity({
         words: sessionWords,
         score,
       });
+      recovery.checkpoint({
+        index: session.questions.length,
+        total: session.questions.length,
+        correctCount: session.questions.length,
+        answeredCount: session.questions.length + mistakes,
+        meaningful: false,
+        status: "completed",
+        payload: snapshotPayload(nextMatchedIds, mistakes),
+      });
       setFinished(true);
       return;
     }
+    recovery.checkpoint({
+      index: nextMatchedIds.size,
+      total: session.questions.length,
+      correctCount: nextMatchedIds.size,
+      answeredCount: nextMatchedIds.size + mistakes,
+      meaningful: true,
+      payload: snapshotPayload(nextMatchedIds, mistakes),
+    });
     window.setTimeout(() => {
       processingRef.current = false;
       setIsProcessing(false);
@@ -165,6 +250,7 @@ export function MatchingActivity({
         title="Match"
         subtitle="This unit has no matching pairs yet"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<Puzzle size={19} />}
       >
         <section className="activity-empty">
@@ -188,6 +274,7 @@ export function MatchingActivity({
         title="Match complete"
         subtitle="Every pair found"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<Puzzle size={19} />}
       >
         <SessionResults
@@ -212,6 +299,7 @@ export function MatchingActivity({
       title="Match"
       subtitle="Connect Spanish with English"
       onBack={onBack}
+      onBackToMap={onBackToMap}
       icon={<Puzzle size={19} />}
       current={matchedIds.size + 1}
       total={session.questions.length}

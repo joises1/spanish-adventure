@@ -1,4 +1,10 @@
-import { ArrowLeft, ArrowRight, BookOpen, Check } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BookOpen,
+  Check,
+  Map,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProgressBar } from "../components/ProgressBar";
 import { SessionResults } from "../components/SessionResults";
@@ -157,6 +163,8 @@ type ModeShellProps = {
   title: string;
   subtitle: string;
   onBack: () => void;
+  onBackToMap?: () => void;
+  backLabel?: string;
   icon: React.ReactNode;
   current?: number;
   total?: number;
@@ -168,6 +176,8 @@ export function ModeShell({
   title,
   subtitle,
   onBack,
+  onBackToMap,
+  backLabel = "Back to Unit",
   icon,
   current,
   total = world.words.length,
@@ -178,10 +188,18 @@ export function ModeShell({
   return (
     <main className="mode-page">
       <div className="mode-page__top">
-        <button className="back-button" onClick={onBack}>
-          <ArrowLeft size={18} />
-          {world.name}
-        </button>
+        <div className="mode-navigation-buttons">
+          <button className="back-button" onClick={onBack}>
+            <ArrowLeft size={18} />
+            {backLabel}
+          </button>
+          {onBackToMap && (
+            <button className="back-button" onClick={onBackToMap}>
+              <Map size={18} />
+              Back to Map
+            </button>
+          )}
+        </div>
         <div className="mode-title">
           <span>{icon}</span>
           <div>

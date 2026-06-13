@@ -16,10 +16,17 @@ import {
   scoreToStars,
 } from "../engine/activityEngine";
 import { getWorldProgress } from "../engine/game";
+import { createSeededRandom } from "../engine/narrativeEngine";
+import {
+  getSnapshotNumber,
+  getSnapshotQuestions,
+  getSnapshotStringArray,
+} from "../engine/sessionRecovery";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
-import type { ActivityToken, World } from "../types";
+import { useRecoverableSession } from "../state/SessionContext";
+import type { ActivityToken, CourseId, World } from "../types";
 import {
   getAnswerEvidence,
   getNewlyCollectedWords,
@@ -29,30 +36,84 @@ import {
 } from "./activityHelpers";
 
 type SentenceBuilderActivityProps = {
+  courseId: CourseId;
   world: World;
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
 export function SentenceBuilderActivity({
+  courseId,
   world,
   onBack,
+  onBackToMap,
   onComplete,
 }: SentenceBuilderActivityProps) {
   const { completeActivity, recordActivityAnswer, state } = useGame();
-  const [session] = useState(() =>
-    createActivitySession("sentence-builder", world),
+  const recovery = useRecoverableSession({
+    courseId,
+    world,
+    activityType: "sentence-builder",
+  });
+  const [session] = useState(() => ({
+    ...createActivitySession(
+      "sentence-builder",
+      world,
+      createSeededRandom(recovery.seed),
+    ),
+    id: recovery.sessionId,
+  }));
+  const [queue, setQueue] = useState(() => {
+    const restored = getSnapshotQuestions(recovery.restored);
+    return restored.length > 0 ? restored : session.questions;
+  });
+  const [index, setIndex] = useState(() =>
+    Math.min(
+      Math.max(0, recovery.restored?.index ?? 0),
+      Math.max(0, queue.length - 1),
+    ),
   );
-  const [queue, setQueue] = useState(session.questions);
-  const [index, setIndex] = useState(0);
-  const [selectedTokens, setSelectedTokens] = useState<ActivityToken[]>([]);
+  const [selectedTokens, setSelectedTokens] = useState<ActivityToken[]>(
+    () => {
+      const selectedIds = new Set(
+        getSnapshotStringArray(recovery.restored, "selectedTokenIds"),
+      );
+      return (
+        queue[
+          Math.min(
+            Math.max(0, recovery.restored?.index ?? 0),
+            Math.max(0, queue.length - 1),
+          )
+        ]?.tokens?.filter((token) => selectedIds.has(token.id)) ?? []
+      );
+    },
+  );
   const [checked, setChecked] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [answeredCount, setAnsweredCount] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [sessionStartXp] = useState(() => state.xp);
+  const [correctCount, setCorrectCount] = useState(
+    () => recovery.restored?.correctCount ?? 0,
+  );
+  const [answeredCount, setAnsweredCount] = useState(
+    () => recovery.restored?.answeredCount ?? 0,
+  );
+  const [finished, setFinished] = useState(
+    () => recovery.restored?.status === "completed",
+  );
+  const [sessionStartXp] = useState(() =>
+    getSnapshotNumber(recovery.restored, "sessionStartXp", state.xp),
+  );
   const [initialCollectedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
+    () => {
+      const restoredIds = getSnapshotStringArray(
+        recovery.restored,
+        "initialCollectedIds",
+      );
+      return new Set(
+        restoredIds.length > 0
+          ? restoredIds
+          : getWorldProgress(state, world.id).collectedWordIds,
+      );
+    },
   );
   const retryCounts = useRef<Record<string, number>>({});
   const submittedQuestionIds = useRef(new Set<string>());
@@ -63,17 +124,42 @@ export function SentenceBuilderActivity({
     checked &&
     normalizeSentence(builtSentence) === normalizeSentence(question?.answer ?? "");
   const sessionWords = getSessionWords(world, queue);
+  const snapshotPayload = (
+    questions = queue,
+    tokens = selectedTokens,
+  ) => ({
+    questions,
+    selectedTokenIds: tokens.map((token) => token.id),
+    sessionStartXp,
+    initialCollectedIds: [...initialCollectedIds],
+  });
 
   const addToken = (token: ActivityToken) => {
     if (checked) return;
-    setSelectedTokens((current) => [...current, token]);
+    const nextTokens = [...selectedTokens, token];
+    setSelectedTokens(nextTokens);
+    recovery.checkpoint({
+      index,
+      total: queue.length,
+      correctCount,
+      answeredCount,
+      meaningful: true,
+      payload: snapshotPayload(queue, nextTokens),
+    });
   };
 
   const removeToken = (token: ActivityToken) => {
     if (checked) return;
-    setSelectedTokens((current) =>
-      current.filter((item) => item.id !== token.id),
-    );
+    const nextTokens = selectedTokens.filter((item) => item.id !== token.id);
+    setSelectedTokens(nextTokens);
+    recovery.checkpoint({
+      index,
+      total: queue.length,
+      correctCount,
+      answeredCount,
+      meaningful: nextTokens.length > 0 || answeredCount > 0,
+      payload: snapshotPayload(queue, nextTokens),
+    });
   };
 
   const checkSentence = () => {
@@ -98,6 +184,14 @@ export function SentenceBuilderActivity({
       concepts: getQuestionConcepts([world], world, question),
       isCorrect: correct,
       ...getAnswerEvidence(question, builtSentence),
+    });
+    recovery.checkpoint({
+      index,
+      total: queue.length,
+      correctCount,
+      answeredCount,
+      meaningful: true,
+      payload: snapshotPayload(),
     });
 
     if (!correct && !question.isRetry) {
@@ -131,12 +225,30 @@ export function SentenceBuilderActivity({
         words: sessionWords,
         score,
       });
+      recovery.checkpoint({
+        index,
+        total: queue.length,
+        correctCount,
+        answeredCount,
+        meaningful: false,
+        status: "completed",
+        payload: snapshotPayload(),
+      });
       setFinished(true);
       return;
     }
+    const nextIndex = index + 1;
+    recovery.checkpoint({
+      index: nextIndex,
+      total: queue.length,
+      correctCount,
+      answeredCount,
+      meaningful: true,
+      payload: snapshotPayload(queue, []),
+    });
     setSelectedTokens([]);
     setChecked(false);
-    setIndex((current) => current + 1);
+    setIndex(nextIndex);
   };
 
   if (!question) {
@@ -146,6 +258,7 @@ export function SentenceBuilderActivity({
         title="Sentence Builder"
         subtitle="Example sentences are needed for this activity"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<TextCursorInput size={19} />}
       >
         <section className="activity-empty">
@@ -167,6 +280,7 @@ export function SentenceBuilderActivity({
         title="Sentence Builder complete"
         subtitle="Your Spanish is taking shape"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<TextCursorInput size={19} />}
       >
         <SessionResults
@@ -195,6 +309,7 @@ export function SentenceBuilderActivity({
       title="Sentence Builder"
       subtitle="Build the Spanish sentence"
       onBack={onBack}
+      onBackToMap={onBackToMap}
       icon={<TextCursorInput size={19} />}
       current={index + 1}
       total={queue.length}
@@ -250,7 +365,17 @@ export function SentenceBuilderActivity({
             <button
               className="secondary-button"
               type="button"
-              onClick={() => setSelectedTokens([])}
+              onClick={() => {
+                setSelectedTokens([]);
+                recovery.checkpoint({
+                  index,
+                  total: queue.length,
+                  correctCount,
+                  answeredCount,
+                  meaningful: answeredCount > 0,
+                  payload: snapshotPayload(queue, []),
+                });
+              }}
               disabled={selectedTokens.length === 0}
             >
               <RotateCcw size={17} />

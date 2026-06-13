@@ -1308,6 +1308,23 @@ main {
   gap: 8px;
 }
 
+.resume-activity-button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  color: #fff;
+  background: linear-gradient(135deg, #7657b5, #9d70c4);
+  border: 1px solid #694b9e;
+  border-radius: 12px;
+  box-shadow: 0 7px 16px rgba(90, 66, 143, 0.22);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+}
+
 .find-world-button {
   min-height: 38px;
   display: inline-flex;
@@ -3049,6 +3066,17 @@ main {
 
 .mode-page__top {
   padding-bottom: 25px;
+}
+
+.mode-navigation-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.mode-navigation-buttons .back-button {
+  margin-bottom: 0;
 }
 
 .mode-title {
@@ -5361,10 +5389,18 @@ main {
   }
 
   .dictionary-button,
+  .resume-activity-button,
   .find-world-button {
     min-height: 36px;
     padding: 0 8px;
     font-size: 9px;
+  }
+
+  .resume-activity-button span {
+    max-width: 78px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .map-search-panel {

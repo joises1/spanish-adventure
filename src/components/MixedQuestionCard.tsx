@@ -16,6 +16,8 @@ type MixedQuestionCardProps = {
   question: ActivityQuestion;
   onResult: (isCorrect: boolean, userAnswer: string) => void;
   onContinue: () => void;
+  initialSelectedTokenIds?: string[];
+  onDraftChange?: (selectedTokenIds: string[]) => void;
   isLast: boolean;
 };
 
@@ -23,10 +25,17 @@ export function MixedQuestionCard({
   question,
   onResult,
   onContinue,
+  initialSelectedTokenIds = [],
+  onDraftChange,
   isLast,
 }: MixedQuestionCardProps) {
   const [selectedChoiceId, setSelectedChoiceId] = useState<string>();
-  const [selectedTokens, setSelectedTokens] = useState<ActivityToken[]>([]);
+  const [selectedTokens, setSelectedTokens] = useState<ActivityToken[]>(
+    () => {
+      const selectedIds = new Set(initialSelectedTokenIds);
+      return question.tokens?.filter((token) => selectedIds.has(token.id)) ?? [];
+    },
+  );
   const [answered, setAnswered] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const submittedRef = useRef(false);
@@ -51,14 +60,16 @@ export function MixedQuestionCard({
 
   const addToken = (token: ActivityToken) => {
     if (answered) return;
-    setSelectedTokens((current) => [...current, token]);
+    const next = [...selectedTokens, token];
+    setSelectedTokens(next);
+    onDraftChange?.(next.map((item) => item.id));
   };
 
   const removeToken = (token: ActivityToken) => {
     if (answered) return;
-    setSelectedTokens((current) =>
-      current.filter((item) => item.id !== token.id),
-    );
+    const next = selectedTokens.filter((item) => item.id !== token.id);
+    setSelectedTokens(next);
+    onDraftChange?.(next.map((item) => item.id));
   };
 
   const checkSentence = () => {
@@ -188,7 +199,10 @@ export function MixedQuestionCard({
               <button
                 className="secondary-button"
                 type="button"
-                onClick={() => setSelectedTokens([])}
+                onClick={() => {
+                  setSelectedTokens([]);
+                  onDraftChange?.([]);
+                }}
                 disabled={selectedTokens.length === 0}
               >
                 <RotateCcw size={17} />

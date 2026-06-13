@@ -10,72 +10,130 @@ import { useRef, useState } from "react";
 import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
 import {
-  createSessionId,
   scoreToStars,
 } from "../engine/activityEngine";
 import { getWorldProgress } from "../engine/game";
 import { generateStoryShuffleQuestion } from "../engine/narrativeEngine";
+import {
+  getSnapshotNumber,
+  getSnapshotStringArray,
+} from "../engine/sessionRecovery";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
-import type { StorySentence, VocabularyWord, World } from "../types";
+import { useRecoverableSession } from "../state/SessionContext";
+import type {
+  CourseId,
+  StorySentence,
+  VocabularyWord,
+  World,
+} from "../types";
 import { getNewlyCollectedWords } from "./activityHelpers";
 
 type StoryShuffleActivityProps = {
+  courseId: CourseId;
   world: World;
   previouslyLearnedWords: VocabularyWord[];
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
 export function StoryShuffleActivity({
+  courseId,
   world,
   previouslyLearnedWords,
   onBack,
+  onBackToMap,
   onComplete,
 }: StoryShuffleActivityProps) {
   const { completeActivity, state } = useGame();
-  const [sessionId] = useState(() =>
-    createSessionId(world.id, "story-shuffle"),
-  );
+  const recovery = useRecoverableSession({
+    courseId,
+    world,
+    activityType: "story-shuffle",
+  });
+  const sessionId = recovery.sessionId;
   const [question] = useState(() =>
     generateStoryShuffleQuestion(
       world,
       previouslyLearnedWords,
-      `${world.id}:story:${Date.now()}`,
+      recovery.seed,
     ),
   );
-  const [sentences, setSentences] = useState<StorySentence[]>(
-    () => question?.storySentences ?? [],
+  const [sentences, setSentences] = useState<StorySentence[]>(() => {
+    const source = question?.storySentences ?? [];
+    const restoredIds = getSnapshotStringArray(
+      recovery.restored,
+      "sentenceIds",
+    );
+    const byId = new Map(source.map((sentence) => [sentence.id, sentence]));
+    const restored = restoredIds
+      .map((id) => byId.get(id))
+      .filter((sentence): sentence is StorySentence => Boolean(sentence));
+    return restored.length === source.length ? restored : source;
+  });
+  const [attempts, setAttempts] = useState(() =>
+    getSnapshotNumber(recovery.restored, "attempts"),
   );
-  const [attempts, setAttempts] = useState(0);
   const [message, setMessage] = useState(
     "Use the sequence clues to rebuild the story.",
   );
-  const [finished, setFinished] = useState(false);
-  const [finalScore, setFinalScore] = useState(0);
+  const [finished, setFinished] = useState(
+    () => recovery.restored?.status === "completed",
+  );
+  const [finalScore, setFinalScore] = useState(() =>
+    getSnapshotNumber(recovery.restored, "finalScore"),
+  );
   const [orderChecked, setOrderChecked] = useState(false);
-  const [sessionStartXp] = useState(() => state.xp);
+  const [sessionStartXp] = useState(() =>
+    getSnapshotNumber(recovery.restored, "sessionStartXp", state.xp),
+  );
   const [initialCollectedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
+    () => {
+      const restoredIds = getSnapshotStringArray(
+        recovery.restored,
+        "initialCollectedIds",
+      );
+      return new Set(
+        restoredIds.length > 0
+          ? restoredIds
+          : getWorldProgress(state, world.id).collectedWordIds,
+      );
+    },
   );
   const currentWords =
     question?.sourceWordIds
       .map((wordId) => world.words.find((word) => word.id === wordId))
       .filter((word): word is VocabularyWord => Boolean(word)) ?? [];
   const completionStarted = useRef(false);
+  const snapshotPayload = (
+    nextSentences = sentences,
+    nextAttempts = attempts,
+    score = finalScore,
+  ) => ({
+    sentenceIds: nextSentences.map((sentence) => sentence.id),
+    attempts: nextAttempts,
+    finalScore: score,
+    sessionStartXp,
+    initialCollectedIds: [...initialCollectedIds],
+  });
 
   const moveSentence = (sentenceIndex: number, direction: -1 | 1) => {
     const target = sentenceIndex + direction;
     if (target < 0 || target >= sentences.length || finished) return;
     setOrderChecked(false);
-    setSentences((current) => {
-      const next = [...current];
-      [next[sentenceIndex], next[target]] = [
-        next[target],
-        next[sentenceIndex],
-      ];
-      return next;
+    const next = [...sentences];
+    [next[sentenceIndex], next[target]] = [
+      next[target],
+      next[sentenceIndex],
+    ];
+    setSentences(next);
+    recovery.checkpoint({
+      index: 0,
+      total: 1,
+      meaningful: true,
+      payload: snapshotPayload(next),
     });
   };
 
@@ -93,6 +151,15 @@ export function StoryShuffleActivity({
       score,
       rewardXp: score >= 80 ? 10 : 2,
     });
+    recovery.checkpoint({
+      index: 0,
+      total: 1,
+      correctCount: 1,
+      answeredCount: attempts + 1,
+      meaningful: false,
+      status: "completed",
+      payload: snapshotPayload(orderedSentences, attempts, score),
+    });
     setFinished(true);
   };
 
@@ -107,7 +174,15 @@ export function StoryShuffleActivity({
       finishStory(attempts === 0 ? 100 : attempts === 1 ? 80 : 60);
       return;
     }
-    setAttempts((current) => current + 1);
+    const nextAttempts = attempts + 1;
+    setAttempts(nextAttempts);
+    recovery.checkpoint({
+      index: 0,
+      total: 1,
+      answeredCount: nextAttempts,
+      meaningful: true,
+      payload: snapshotPayload(sentences, nextAttempts),
+    });
     setMessage(
       "Not quite yet. Look for Primero, Después, and Al final.",
     );
@@ -129,6 +204,7 @@ export function StoryShuffleActivity({
         title="Story Shuffle"
         subtitle="This unit needs vocabulary for a story"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<ListOrdered size={19} />}
       >
         <section className="activity-empty">
@@ -149,6 +225,7 @@ export function StoryShuffleActivity({
         title="Story complete"
         subtitle="The whole mini-story makes sense"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<ListOrdered size={19} />}
       >
         <div className="story-results-stack">
@@ -190,6 +267,7 @@ export function StoryShuffleActivity({
       title="Story Shuffle"
       subtitle="Build one clear beginning, middle, and ending"
       onBack={onBack}
+      onBackToMap={onBackToMap}
       icon={<ListOrdered size={19} />}
       current={1}
       total={1}

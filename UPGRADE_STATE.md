@@ -4,11 +4,44 @@ Last updated: 2026-06-13
 
 ## Status
 
-Phase 0 stabilization, Phase 1A storage durability, and Phase 1B mastery and
-mistake lifecycle are complete. No course vocabulary, examples, visual
-redesign, or new learning activity was added.
+Phase 0 stabilization, Phase 1A storage durability, Phase 1B mastery and
+mistake lifecycle, and Phase 1C navigation and session reliability are
+complete. No course vocabulary, examples, major visual redesign, or new
+learning activity was added.
 
 ## Completed fixes
+
+### Navigation and session reliability
+
+- replaced ephemeral screen-only navigation with validated hash routes
+- stores course, world, unit, activity, review mode, and focused mistake
+  selection in typed history state
+- browser Back and Forward use indexed application history and preserve the
+  current screen predictably
+- refresh restores a valid hash route, then a validated saved route, then the
+  selected course map or course selection as safe fallbacks
+- malformed hashes, missing worlds, unavailable activities, and unsupported
+  route shapes fall back without rendering a blank screen
+- added one validated, expiring session checkpoint per course
+- session snapshots preserve stable session ID, deterministic seed, current
+  position, score counters, question queues where needed, ordering state, and
+  sentence-tile drafts
+- Explore, Matching, Listening, Sentence Builder, Dialogue, Story Shuffle,
+  Unit Challenge, Daily Review, and Mistake Replay restore from safe
+  checkpoints
+- answer-feedback refreshes deliberately resume at the pre-answer boundary;
+  the stable answer event ID makes the replayed submission idempotent
+- completion snapshots reopen the results screen without re-running completion
+  rewards
+- completed snapshots are cleared when leaving the results screen
+- added a visible Resume last activity action on the course map
+- added consistent Back to Unit and Back to Map controls in activities
+- Return to Course Selection remains available from the shared side drawer
+- internal navigation, browser history navigation, and browser unload warn only
+  when a meaningful active checkpoint exists
+- confirmed abandonment keeps the safe checkpoint available for later resume
+- starting a different activity asks before replacing an existing checkpoint
+- A1-A2 and B1 routes and session checkpoints remain isolated
 
 ### Mastery correctness
 
@@ -198,9 +231,44 @@ redesign, or new learning activity was added.
 - `tests/tts.test.ts`
 - `tests/challengeEngine.test.ts`
 - `tests/progressState.test.ts`
+- `src/engine/navigation.ts`
+- `src/engine/sessionRecovery.ts`
+- `src/state/SessionContext.tsx`
+- `tests/navigation.test.ts`
+- `tests/sessionRecovery.test.ts`
 - `UPGRADE_STATE.md`
 
+### Navigation and activity recovery
+
+- `src/App.tsx`
+- `src/main.tsx`
+- `src/screens/ActivityScreen.tsx`
+- `src/screens/LearnMode.tsx`
+- `src/screens/MapScreen.tsx`
+- `src/activities/AdaptiveReviewActivity.tsx`
+- `src/activities/DialogueActivity.tsx`
+- `src/activities/ExploreActivity.tsx`
+- `src/activities/ListeningActivity.tsx`
+- `src/activities/MatchingActivity.tsx`
+- `src/activities/SentenceBuilderActivity.tsx`
+- `src/activities/StoryShuffleActivity.tsx`
+- `src/activities/UnitChallengeActivity.tsx`
+- `src/components/MixedQuestionCard.tsx`
+- `src/styles.css`
+
 ## Tests added
+
+- refresh route recovery
+- invalid and malformed navigation fallback
+- indexed browser Back and Forward history state
+- focused mistake-review history restoration
+- safe resumable-route validation
+- selected-course route attribution
+- active meaningful versus empty/completed abandonment warnings
+- stale, future, malformed, and cross-course session rejection
+- safe question-payload validation
+- stable restored-session answer and completion idempotency
+- A1-A2/B1 session-key and snapshot isolation
 
 - one-answer mastery confidence cap and 0-100 bounds
 - independent vocabulary, listening, sentence, grammar, and context dimensions
@@ -254,15 +322,16 @@ redesign, or new learning activity was added.
 
 Run on 2026-06-13:
 
-- `npm test`: PASS, 60 passed, 0 failed
+- `npm test`: PASS, 72 passed, 0 failed
 - `npm run lint`: PASS
 - `npm run build`: PASS
-- Vite transformed 1,620 modules
-- output JavaScript approximately 319.29 kB, 99.50 kB gzip
-- output CSS approximately 83.26 kB, 16.53 kB gzip
+- Vite transformed 1,623 modules
+- output JavaScript approximately 339.25 kB, 104.43 kB gzip
+- output CSS approximately 83.83 kB, 16.61 kB gzip
+- local development endpoint returned HTTP 200
 
-The in-app browser connection was unavailable during the final smoke-check
-attempt, so no visual browser verification is claimed.
+The in-app browser connection was unavailable in the Windows sandbox during
+the final smoke-check attempt, so no visual browser verification is claimed.
 
 ## Remaining P0 issues
 
@@ -278,7 +347,6 @@ the app becomes public or receives meaningful traffic.
   are now safely gated instead of inventing content
 - dialogue and story language still needs a later teacher-reviewed content pass
 - tiny adaptive-review pools can still produce weak choice sets
-- navigation has no URL history or active-session recovery
 - drawer and search focus management remains incomplete
 - component/browser/accessibility coverage remains limited
 - reward and progress terminology still needs a later product-alignment pass
@@ -290,12 +358,19 @@ the app becomes public or receives meaningful traffic.
   and still need longitudinal learner-data calibration
 - resolved mistakes remain in local history indefinitely; there is no manual
   archive/delete action
+- recovery intentionally keeps one unfinished session per course; starting a
+  different activity replaces that course's previous checkpoint after
+  confirmation
+- checkpoints are browser-local, expire after 14 days, and do not synchronize
+  across devices
+- browser-native unload warnings use browser-controlled copy
 
 ## Exact next phase
 
-Begin Phase 1C: remaining progress semantics only.
+Begin Phase 1D: accessibility and browser-level reliability coverage only.
 
-The exact next implementation step is to define shared selectors and UI copy
-that clearly separate coverage, completed sessions, activity score, stars, and
-mastery across the map and activity hub. Then derive reward previews from the
-actual generated session without changing course content or adding activities.
+The exact next implementation step is to add focus trapping/restoration for
+the side drawer and world search, keyboard navigation for activity controls,
+and browser component tests for Back/Forward, refresh resume, abandonment
+confirmation, and completion reopening. Do not change course content or add
+activities in that phase.

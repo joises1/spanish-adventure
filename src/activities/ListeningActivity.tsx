@@ -14,10 +14,17 @@ import {
   scoreToStars,
 } from "../engine/activityEngine";
 import { getWorldProgress } from "../engine/game";
+import { createSeededRandom } from "../engine/narrativeEngine";
+import {
+  getSnapshotNumber,
+  getSnapshotQuestions,
+  getSnapshotStringArray,
+} from "../engine/sessionRecovery";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
-import type { World } from "../types";
+import { useRecoverableSession } from "../state/SessionContext";
+import type { CourseId, World } from "../types";
 import {
   getAnswerEvidence,
   getNewlyCollectedWords,
@@ -27,27 +34,69 @@ import {
 } from "./activityHelpers";
 
 type ListeningActivityProps = {
+  courseId: CourseId;
   world: World;
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
 export function ListeningActivity({
+  courseId,
   world,
   onBack,
+  onBackToMap,
   onComplete,
 }: ListeningActivityProps) {
   const { completeActivity, recordActivityAnswer, state } = useGame();
-  const [session] = useState(() => createActivitySession("listening", world));
-  const [queue, setQueue] = useState(session.questions);
-  const [index, setIndex] = useState(0);
+  const recovery = useRecoverableSession({
+    courseId,
+    world,
+    activityType: "listening",
+  });
+  const [session] = useState(() => ({
+    ...createActivitySession(
+      "listening",
+      world,
+      createSeededRandom(recovery.seed),
+    ),
+    id: recovery.sessionId,
+  }));
+  const [queue, setQueue] = useState(() => {
+    const restored = getSnapshotQuestions(recovery.restored);
+    return restored.length > 0 ? restored : session.questions;
+  });
+  const [index, setIndex] = useState(() =>
+    Math.min(
+      Math.max(0, recovery.restored?.index ?? 0),
+      Math.max(0, queue.length - 1),
+    ),
+  );
   const [selectedChoiceId, setSelectedChoiceId] = useState<string>();
-  const [correctCount, setCorrectCount] = useState(0);
-  const [answeredCount, setAnsweredCount] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [sessionStartXp] = useState(() => state.xp);
+  const [correctCount, setCorrectCount] = useState(
+    () => recovery.restored?.correctCount ?? 0,
+  );
+  const [answeredCount, setAnsweredCount] = useState(
+    () => recovery.restored?.answeredCount ?? 0,
+  );
+  const [finished, setFinished] = useState(
+    () => recovery.restored?.status === "completed",
+  );
+  const [sessionStartXp] = useState(() =>
+    getSnapshotNumber(recovery.restored, "sessionStartXp", state.xp),
+  );
   const [initialCollectedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
+    () => {
+      const restoredIds = getSnapshotStringArray(
+        recovery.restored,
+        "initialCollectedIds",
+      );
+      return new Set(
+        restoredIds.length > 0
+          ? restoredIds
+          : getWorldProgress(state, world.id).collectedWordIds,
+      );
+    },
   );
   const retryCounts = useRef<Record<string, number>>({});
   const submittedQuestionIds = useRef(new Set<string>());
@@ -55,6 +104,11 @@ export function ListeningActivity({
   const question = queue[index];
   const sessionWords = getSessionWords(world, queue);
   const isCorrect = selectedChoiceId === question?.correctChoiceId;
+  const snapshotPayload = (questions = queue) => ({
+    questions,
+    sessionStartXp,
+    initialCollectedIds: [...initialCollectedIds],
+  });
 
   const choose = (choiceId: string) => {
     if (
@@ -79,6 +133,14 @@ export function ListeningActivity({
         question,
         question.choices?.find((choice) => choice.id === choiceId)?.text ?? "",
       ),
+    });
+    recovery.checkpoint({
+      index,
+      total: queue.length,
+      correctCount,
+      answeredCount,
+      meaningful: true,
+      payload: snapshotPayload(),
     });
 
     if (!correct && !question.isRetry) {
@@ -108,11 +170,29 @@ export function ListeningActivity({
         words: sessionWords,
         score,
       });
+      recovery.checkpoint({
+        index,
+        total: queue.length,
+        correctCount,
+        answeredCount,
+        meaningful: false,
+        status: "completed",
+        payload: snapshotPayload(),
+      });
       setFinished(true);
       return;
     }
+    const nextIndex = index + 1;
+    recovery.checkpoint({
+      index: nextIndex,
+      total: queue.length,
+      correctCount,
+      answeredCount,
+      meaningful: true,
+      payload: snapshotPayload(),
+    });
     setSelectedChoiceId(undefined);
-    setIndex((current) => current + 1);
+    setIndex(nextIndex);
   };
 
   if (!question) {
@@ -122,6 +202,7 @@ export function ListeningActivity({
         title="Listening"
         subtitle="This unit needs more words"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<Headphones size={19} />}
       >
         <section className="activity-empty">
@@ -142,6 +223,7 @@ export function ListeningActivity({
         title="Listening complete"
         subtitle="Your ear is getting sharper"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<Headphones size={19} />}
       >
         <SessionResults
@@ -166,6 +248,7 @@ export function ListeningActivity({
       title="Listening"
       subtitle="Hear Spanish, then choose the meaning"
       onBack={onBack}
+      onBackToMap={onBackToMap}
       icon={<Headphones size={19} />}
       current={index + 1}
       total={queue.length}

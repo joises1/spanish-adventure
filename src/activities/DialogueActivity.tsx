@@ -11,17 +11,26 @@ import { useRef, useState } from "react";
 import { SessionResults } from "../components/SessionResults";
 import { SpeakerButton } from "../components/SpeakerButton";
 import {
-  createSessionId,
   scoreToStars,
 } from "../engine/activityEngine";
 import { generateDialogueQuestions } from "../engine/narrativeEngine";
 import { getWorldProgress } from "../engine/game";
+import {
+  getSnapshotNumber,
+  getSnapshotStringArray,
+} from "../engine/sessionRecovery";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
 import {
   createProgressEventId,
 } from "../state/progressEvents";
-import type { DialogueTurn, VocabularyWord, World } from "../types";
+import { useRecoverableSession } from "../state/SessionContext";
+import type {
+  CourseId,
+  DialogueTurn,
+  VocabularyWord,
+  World,
+} from "../types";
 import {
   getAnswerEvidence,
   getNewlyCollectedWords,
@@ -31,46 +40,95 @@ import {
 } from "./activityHelpers";
 
 type DialogueActivityProps = {
+  courseId: CourseId;
   world: World;
   previouslyLearnedWords: VocabularyWord[];
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
 export function DialogueActivity({
+  courseId,
   world,
   previouslyLearnedWords,
   onBack,
+  onBackToMap,
   onComplete,
 }: DialogueActivityProps) {
   const { completeActivity, recordActivityAnswer, state } = useGame();
-  const [sessionId] = useState(() =>
-    createSessionId(world.id, "dialogue"),
-  );
+  const recovery = useRecoverableSession({
+    courseId,
+    world,
+    activityType: "dialogue",
+  });
+  const sessionId = recovery.sessionId;
   const [questions] = useState(() =>
     generateDialogueQuestions(
       world,
       previouslyLearnedWords,
-      `${world.id}:dialogue:${Date.now()}`,
+      recovery.seed,
     ),
   );
-  const [index, setIndex] = useState(0);
-  const [selectedChoiceId, setSelectedChoiceId] = useState<string>();
-  const [orderedTurns, setOrderedTurns] = useState<DialogueTurn[]>(
-    () => questions[0]?.dialogueTurns ?? [],
+  const [index, setIndex] = useState(() =>
+    Math.min(
+      Math.max(0, recovery.restored?.index ?? 0),
+      Math.max(0, questions.length - 1),
+    ),
   );
+  const [selectedChoiceId, setSelectedChoiceId] = useState<string>();
+  const [orderedTurns, setOrderedTurns] = useState<DialogueTurn[]>(() => {
+    const question =
+      questions[
+        Math.min(
+          Math.max(0, recovery.restored?.index ?? 0),
+          Math.max(0, questions.length - 1),
+        )
+      ];
+    const turns = question?.dialogueTurns ?? [];
+    const restoredIds = getSnapshotStringArray(
+      recovery.restored,
+      "orderedTurnIds",
+    );
+    const turnById = new Map(turns.map((turn) => [turn.id, turn]));
+    const restoredTurns = restoredIds
+      .map((id) => turnById.get(id))
+      .filter((turn): turn is DialogueTurn => Boolean(turn));
+    return restoredTurns.length === turns.length ? restoredTurns : turns;
+  });
   const [answered, setAnswered] = useState(false);
   const [isCurrentCorrect, setIsCurrentCorrect] = useState(false);
-  const [correctCount, setCorrectCount] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [sessionStartXp] = useState(() => state.xp);
+  const [correctCount, setCorrectCount] = useState(
+    () => recovery.restored?.correctCount ?? 0,
+  );
+  const [finished, setFinished] = useState(
+    () => recovery.restored?.status === "completed",
+  );
+  const [sessionStartXp] = useState(() =>
+    getSnapshotNumber(recovery.restored, "sessionStartXp", state.xp),
+  );
   const [initialCollectedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
+    () => {
+      const restoredIds = getSnapshotStringArray(
+        recovery.restored,
+        "initialCollectedIds",
+      );
+      return new Set(
+        restoredIds.length > 0
+          ? restoredIds
+          : getWorldProgress(state, world.id).collectedWordIds,
+      );
+    },
   );
   const question = questions[index];
   const sessionWords = getSessionWords(world, questions);
   const answeredQuestionIds = useRef(new Set<string>());
   const completionStarted = useRef(false);
+  const snapshotPayload = (turns = orderedTurns) => ({
+    orderedTurnIds: turns.map((turn) => turn.id),
+    sessionStartXp,
+    initialCollectedIds: [...initialCollectedIds],
+  });
 
   const submitResult = (isCorrect: boolean, userAnswer: string) => {
     if (
@@ -92,6 +150,14 @@ export function DialogueActivity({
       isCorrect,
       ...getAnswerEvidence(question, userAnswer),
     });
+    recovery.checkpoint({
+      index,
+      total: questions.length,
+      correctCount,
+      answeredCount: index,
+      meaningful: true,
+      payload: snapshotPayload(),
+    });
   };
 
   const choose = (choiceId: string) => {
@@ -107,10 +173,16 @@ export function DialogueActivity({
     if (answered) return;
     const target = turnIndex + direction;
     if (target < 0 || target >= orderedTurns.length) return;
-    setOrderedTurns((current) => {
-      const next = [...current];
-      [next[turnIndex], next[target]] = [next[target], next[turnIndex]];
-      return next;
+    const next = [...orderedTurns];
+    [next[turnIndex], next[target]] = [next[target], next[turnIndex]];
+    setOrderedTurns(next);
+    recovery.checkpoint({
+      index,
+      total: questions.length,
+      correctCount,
+      answeredCount: index,
+      meaningful: true,
+      payload: snapshotPayload(next),
     });
   };
 
@@ -137,11 +209,29 @@ export function DialogueActivity({
         words: sessionWords,
         score,
       });
+      recovery.checkpoint({
+        index,
+        total: questions.length,
+        correctCount,
+        answeredCount: questions.length,
+        meaningful: false,
+        status: "completed",
+        payload: snapshotPayload(),
+      });
       setFinished(true);
       return;
     }
     const nextQuestion = questions[index + 1];
-    setIndex((current) => current + 1);
+    const nextIndex = index + 1;
+    recovery.checkpoint({
+      index: nextIndex,
+      total: questions.length,
+      correctCount,
+      answeredCount: nextIndex,
+      meaningful: true,
+      payload: snapshotPayload(nextQuestion.dialogueTurns ?? []),
+    });
+    setIndex(nextIndex);
     setSelectedChoiceId(undefined);
     setOrderedTurns(nextQuestion.dialogueTurns ?? []);
     setAnswered(false);
@@ -155,6 +245,7 @@ export function DialogueActivity({
         title="Dialogue"
         subtitle="This unit needs vocabulary for a conversation"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<MessageCircle size={19} />}
       >
         <section className="activity-empty">
@@ -175,6 +266,7 @@ export function DialogueActivity({
         title="Dialogue complete"
         subtitle="A full conversation practiced"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<MessageCircle size={19} />}
       >
         <SessionResults
@@ -201,6 +293,7 @@ export function DialogueActivity({
       title="Dialogue"
       subtitle="Practice a natural unit conversation"
       onBack={onBack}
+      onBackToMap={onBackToMap}
       icon={<MessageCircle size={19} />}
       current={index + 1}
       total={questions.length}

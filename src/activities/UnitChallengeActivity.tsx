@@ -3,14 +3,19 @@ import { useMemo, useRef, useState } from "react";
 import { MixedQuestionCard } from "../components/MixedQuestionCard";
 import { SessionResults } from "../components/SessionResults";
 import {
-  createSessionId,
   scoreToStars,
 } from "../engine/activityEngine";
 import { generateUnitChallenge } from "../engine/challengeEngine";
 import { getWorldProgress } from "../engine/game";
+import {
+  getSnapshotNumber,
+  getSnapshotRecord,
+  getSnapshotStringArray,
+} from "../engine/sessionRecovery";
 import { ModeShell } from "../screens/LearnMode";
 import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
+import { useRecoverableSession } from "../state/SessionContext";
 import type {
   ActivitySkill,
   Course,
@@ -29,6 +34,7 @@ type UnitChallengeActivityProps = {
   world: World;
   previouslyLearnedWords: VocabularyWord[];
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
@@ -51,28 +57,72 @@ export function UnitChallengeActivity({
   world,
   previouslyLearnedWords,
   onBack,
+  onBackToMap,
   onComplete,
 }: UnitChallengeActivityProps) {
   const { completeActivity, recordActivityAnswer, state } = useGame();
-  const [sessionId] = useState(() =>
-    createSessionId(world.id, "unit-challenge"),
-  );
+  const recovery = useRecoverableSession({
+    courseId: course.id,
+    world,
+    activityType: "unit-challenge",
+  });
+  const sessionId = recovery.sessionId;
   const [questions] = useState(() =>
     generateUnitChallenge(
       world,
       previouslyLearnedWords,
-      `${world.id}:challenge:${Date.now()}`,
+      recovery.seed,
     ),
   );
-  const [index, setIndex] = useState(0);
-  const [correctCount, setCorrectCount] = useState(0);
+  const [index, setIndex] = useState(() =>
+    Math.min(
+      Math.max(0, recovery.restored?.index ?? 0),
+      Math.max(0, questions.length - 1),
+    ),
+  );
+  const [correctCount, setCorrectCount] = useState(
+    () => recovery.restored?.correctCount ?? 0,
+  );
+  const [draftTokenIds, setDraftTokenIds] = useState(() =>
+    getSnapshotStringArray(recovery.restored, "draftTokenIds"),
+  );
   const [skillResults, setSkillResults] = useState<
     Partial<Record<ActivitySkill, SkillResult>>
-  >({});
-  const [finished, setFinished] = useState(false);
-  const [sessionStartXp] = useState(() => state.xp);
+  >(() => {
+    const raw = getSnapshotRecord(recovery.restored, "skillResults");
+    return Object.fromEntries(
+      Object.entries(raw).filter((entry): entry is [ActivitySkill, SkillResult] => {
+        const [skill, result] = entry;
+        return (
+          skill in skillLabels &&
+          typeof result === "object" &&
+          result !== null &&
+          "correct" in result &&
+          "total" in result &&
+          typeof result.correct === "number" &&
+          typeof result.total === "number"
+        );
+      }),
+    );
+  });
+  const [finished, setFinished] = useState(
+    () => recovery.restored?.status === "completed",
+  );
+  const [sessionStartXp] = useState(() =>
+    getSnapshotNumber(recovery.restored, "sessionStartXp", state.xp),
+  );
   const [initialCollectedIds] = useState(
-    () => new Set(getWorldProgress(state, world.id).collectedWordIds),
+    () => {
+      const restoredIds = getSnapshotStringArray(
+        recovery.restored,
+        "initialCollectedIds",
+      );
+      return new Set(
+        restoredIds.length > 0
+          ? restoredIds
+          : getWorldProgress(state, world.id).collectedWordIds,
+      );
+    },
   );
   const question = questions[index];
   const currentWordIds = useMemo(
@@ -84,6 +134,15 @@ export function UnitChallengeActivity({
   );
   const answeredQuestionIds = useRef(new Set<string>());
   const completionStarted = useRef(false);
+  const snapshotPayload = (
+    results: Partial<Record<ActivitySkill, SkillResult>> = skillResults,
+    nextDraftTokenIds = draftTokenIds,
+  ) => ({
+    skillResults: results,
+    draftTokenIds: nextDraftTokenIds,
+    sessionStartXp,
+    initialCollectedIds: [...initialCollectedIds],
+  });
 
   const recordResult = (isCorrect: boolean, userAnswer: string) => {
     if (!question || answeredQuestionIds.current.has(question.id)) return;
@@ -95,6 +154,14 @@ export function UnitChallengeActivity({
       concepts: getQuestionConcepts(course.worlds, world, question),
       isCorrect,
       ...getAnswerEvidence(question, userAnswer),
+    });
+    recovery.checkpoint({
+      index,
+      total: questions.length,
+      correctCount,
+      answeredCount: index,
+      meaningful: true,
+      payload: snapshotPayload(),
     });
     setCorrectCount((current) => current + (isCorrect ? 1 : 0));
 
@@ -128,10 +195,29 @@ export function UnitChallengeActivity({
         words: currentWords,
         score,
       });
+      recovery.checkpoint({
+        index,
+        total: questions.length,
+        correctCount,
+        answeredCount: questions.length,
+        meaningful: false,
+        status: "completed",
+        payload: snapshotPayload(skillResults, []),
+      });
       setFinished(true);
       return;
     }
-    setIndex((current) => current + 1);
+    const nextIndex = index + 1;
+    recovery.checkpoint({
+      index: nextIndex,
+      total: questions.length,
+      correctCount,
+      answeredCount: nextIndex,
+      meaningful: true,
+      payload: snapshotPayload(skillResults, []),
+    });
+    setDraftTokenIds([]);
+    setIndex(nextIndex);
   };
 
   if (!question) {
@@ -141,6 +227,7 @@ export function UnitChallengeActivity({
         title="Unit Challenge"
         subtitle="This unit needs more material"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<Trophy size={19} />}
       >
         <section className="activity-empty">
@@ -176,6 +263,7 @@ export function UnitChallengeActivity({
         title="Challenge complete"
         subtitle="A balanced look at your unit skills"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<Trophy size={19} />}
       >
         <div className="challenge-results-stack">
@@ -230,6 +318,7 @@ export function UnitChallengeActivity({
       title="Unit Challenge"
       subtitle="Vocabulary, listening, grammar, dialogue, and story"
       onBack={onBack}
+      onBackToMap={onBackToMap}
       icon={<Trophy size={19} />}
       current={index + 1}
       total={questions.length}
@@ -244,6 +333,18 @@ export function UnitChallengeActivity({
         question={question}
         onResult={recordResult}
         onContinue={continueSession}
+        initialSelectedTokenIds={draftTokenIds}
+        onDraftChange={(nextDraftTokenIds) => {
+          setDraftTokenIds(nextDraftTokenIds);
+          recovery.checkpoint({
+            index,
+            total: questions.length,
+            correctCount,
+            answeredCount: index,
+            meaningful: nextDraftTokenIds.length > 0 || index > 0,
+            payload: snapshotPayload(skillResults, nextDraftTokenIds),
+          });
+        }}
         isLast={index === questions.length - 1}
       />
     </ModeShell>

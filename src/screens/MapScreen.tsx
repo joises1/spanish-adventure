@@ -1,4 +1,5 @@
-import { Compass, Search, X } from "lucide-react";
+import { Compass, Play, Search, X } from "lucide-react";
+import type { SafeSessionSnapshot } from "../engine/sessionRecovery";
 import { useMemo, useState } from "react";
 import { LessonMap } from "../components/LessonMap";
 import type { Course, World } from "../types";
@@ -7,12 +8,16 @@ type MapScreenProps = {
   course: Course;
   worlds: World[];
   onOpenWorld: (world: World) => void;
+  resumeSession?: SafeSessionSnapshot | null;
+  onResumeSession?: () => void;
 };
 
 export function MapScreen({
   course,
   worlds,
   onOpenWorld,
+  resumeSession,
+  onResumeSession,
 }: MapScreenProps) {
   const [query, setQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -43,6 +48,16 @@ export function MapScreen({
         </div>
 
         <div className="adventure-toolbar__actions">
+          {resumeSession && onResumeSession && (
+            <button
+              className="resume-activity-button"
+              type="button"
+              onClick={onResumeSession}
+            >
+              <Play size={17} fill="currentColor" aria-hidden="true" />
+              <span>Resume last activity</span>
+            </button>
+          )}
           <button
             className="find-world-button"
             type="button"

@@ -1,7 +1,19 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AdaptiveReviewActivity } from "./activities/AdaptiveReviewActivity";
 import { AppHeader } from "./components/AppHeader";
-import { getCourse } from "./data/courses";
+import { courses, getCourse } from "./data/courses";
+import {
+  createHistoryState,
+  getResumeRoute,
+  isSessionRoute,
+  parseRouteHash,
+  readHistoryState,
+  resolveInitialRoute,
+  routeCourseId,
+  routeToHash,
+  type AppRoute,
+} from "./engine/navigation";
+import { shouldWarnBeforeAbandon } from "./engine/sessionRecovery";
 import { ActivityScreen } from "./screens/ActivityScreen";
 import { CourseLandingScreen } from "./screens/CourseLandingScreen";
 import { MapScreen } from "./screens/MapScreen";
@@ -9,93 +21,282 @@ import { MistakeNotebookScreen } from "./screens/MistakeNotebookScreen";
 import { WhatYouLearnedScreen } from "./screens/WhatYouLearnedScreen";
 import { WorldScreen } from "./screens/WorldScreen";
 import { useCourse } from "./state/CourseContext";
+import { useSessions } from "./state/SessionContext";
+import { browserStorage } from "./state/storage";
 import type { ActivityType, CourseId, World } from "./types";
 
-type Screen =
-  | { name: "course" }
-  | { name: "map" }
-  | { name: "learned" }
-  | { name: "mistakes" }
-  | {
-      name: "review";
-      mode: "daily" | "mistakes";
-      selectedConceptIds?: string[];
-    }
-  | { name: "world"; world: World }
-  | { name: "activity"; world: World; activityType: ActivityType };
+const LAST_ROUTE_KEY = "spanish-adventure-last-route-v1";
+
+const loadSavedRoute = () => {
+  const result = browserStorage.read(LAST_ROUTE_KEY);
+  if (!result.ok || !result.value) return null;
+  try {
+    return JSON.parse(result.value) as unknown;
+  } catch {
+    return null;
+  }
+};
 
 function App() {
   const { selectedCourseId, selectCourse } = useCourse();
-  const [screen, setScreen] = useState<Screen>({ name: "course" });
-  const course = getCourse(selectedCourseId ?? "b1");
+  const {
+    activeSession,
+    clearSession,
+    resumeSession,
+  } = useSessions();
+  const initialHistory = readHistoryState(window.history.state, courses);
+  const [route, setRoute] = useState<AppRoute>(() =>
+    resolveInitialRoute(
+      window.location.hash,
+      initialHistory?.route ?? loadSavedRoute(),
+      selectedCourseId,
+      courses,
+    ),
+  );
+  const routeRef = useRef(route);
+  const historyIndexRef = useRef(initialHistory?.index ?? 0);
+  const suppressPopRef = useRef(false);
+  const courseId = routeCourseId(route) ?? selectedCourseId ?? "b1";
+  const course = getCourse(courseId);
+  const world =
+    "worldId" in route
+      ? course.worlds.find((candidate) => candidate.id === route.worldId)
+      : undefined;
 
-  const openWorld = (world: World) => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setScreen({ name: "world", world });
+  useEffect(() => {
+    routeRef.current = route;
+    const routeCourse = routeCourseId(route);
+    if (routeCourse && routeCourse !== selectedCourseId) {
+      selectCourse(routeCourse);
+    }
+    browserStorage.write(LAST_ROUTE_KEY, JSON.stringify(route));
+  }, [route, selectCourse, selectedCourseId]);
+
+  useEffect(() => {
+    const currentHistory = readHistoryState(window.history.state, courses);
+    if (!currentHistory) {
+      window.history.replaceState(
+        createHistoryState(route, historyIndexRef.current),
+        "",
+        routeToHash(route),
+      );
+    } else if (window.location.hash !== routeToHash(route)) {
+      window.history.replaceState(
+        createHistoryState(route, currentHistory.index),
+        "",
+        routeToHash(route),
+      );
+    }
+  }, [route]);
+
+  const confirmLeave = useCallback(
+    (target: AppRoute) => {
+      if (
+        !isSessionRoute(routeRef.current) ||
+        routeToHash(routeRef.current) === routeToHash(target) ||
+        !shouldWarnBeforeAbandon(activeSession)
+      ) {
+        return true;
+      }
+      return window.confirm(
+        "Leave this unfinished activity? Your last safe checkpoint will remain available from the map.",
+      );
+    },
+    [activeSession],
+  );
+
+  const acceptRoute = useCallback(
+    (target: AppRoute, index: number) => {
+      const current = routeRef.current;
+      if (
+        isSessionRoute(current) &&
+        activeSession?.status === "completed"
+      ) {
+        clearSession(activeSession.courseId);
+      }
+      historyIndexRef.current = index;
+      routeRef.current = target;
+      setRoute(target);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    },
+    [activeSession, clearSession],
+  );
+
+  const navigate = useCallback(
+    (target: AppRoute, replace = false) => {
+      if (!confirmLeave(target)) return false;
+      const nextIndex = replace
+        ? historyIndexRef.current
+        : historyIndexRef.current + 1;
+      const method = replace ? "replaceState" : "pushState";
+      window.history[method](
+        createHistoryState(target, nextIndex),
+        "",
+        routeToHash(target),
+      );
+      acceptRoute(target, nextIndex);
+      return true;
+    },
+    [acceptRoute, confirmLeave],
+  );
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const targetHistory =
+        readHistoryState(event.state, courses) ??
+        (() => {
+          const parsed = parseRouteHash(window.location.hash, courses);
+          return parsed
+            ? createHistoryState(parsed, historyIndexRef.current - 1)
+            : null;
+        })();
+      if (!targetHistory) {
+        const fallback: AppRoute = selectedCourseId
+          ? { name: "map", courseId: selectedCourseId }
+          : { name: "course" };
+        if (!confirmLeave(fallback)) {
+          window.history.replaceState(
+            createHistoryState(
+              routeRef.current,
+              historyIndexRef.current,
+            ),
+            "",
+            routeToHash(routeRef.current),
+          );
+          return;
+        }
+        window.history.replaceState(
+          createHistoryState(fallback, historyIndexRef.current),
+          "",
+          routeToHash(fallback),
+        );
+        acceptRoute(fallback, historyIndexRef.current);
+        return;
+      }
+      if (suppressPopRef.current) {
+        suppressPopRef.current = false;
+        return;
+      }
+      if (!confirmLeave(targetHistory.route)) {
+        const delta = historyIndexRef.current - targetHistory.index;
+        suppressPopRef.current = true;
+        window.history.go(delta);
+        return;
+      }
+      acceptRoute(targetHistory.route, targetHistory.index);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [acceptRoute, confirmLeave, selectedCourseId]);
+
+  const chooseCourse = (nextCourseId: CourseId) => {
+    selectCourse(nextCourseId);
+    navigate({ name: "map", courseId: nextCourseId });
   };
 
-  const openActivity = (world: World, activityType: ActivityType) => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setScreen({ name: "activity", world, activityType });
+  const openWorld = (selectedWorld: World) =>
+    navigate({
+      name: "world",
+      courseId: course.id,
+      worldId: selectedWorld.id,
+    });
+
+  const openActivity = (
+    selectedWorld: World,
+    activityType: ActivityType,
+  ) => {
+    const existing = activeSession;
+    if (
+      existing?.status === "active" &&
+      existing.meaningful &&
+      (existing.worldId !== selectedWorld.id ||
+        existing.activityType !== activityType)
+    ) {
+      const replace = window.confirm(
+        "Start this activity and replace your saved unfinished checkpoint?",
+      );
+      if (!replace) return;
+      clearSession(course.id);
+    } else if (existing?.status === "completed") {
+      clearSession(course.id);
+    }
+    navigate({
+      name: "activity",
+      courseId: course.id,
+      worldId: selectedWorld.id,
+      activityType,
+    });
   };
 
-  const showMap = () => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setScreen({ name: "map" });
+  const completeSessionToMap = () => {
+    clearSession(course.id);
+    navigate({ name: "map", courseId: course.id });
   };
 
-  const chooseCourse = (courseId: CourseId) => {
-    selectCourse(courseId);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    setScreen({ name: "map" });
+  const resumeLastActivity = () => {
+    const resumeRoute = getResumeRoute(resumeSession, courses);
+    if (resumeRoute) navigate(resumeRoute);
   };
 
   return (
     <div className="app">
-      {screen.name !== "course" && (
+      {route.name !== "course" && (
         <AppHeader
           course={course}
           worlds={course.worlds}
-          onMap={showMap}
-          onOpenLearned={() => setScreen({ name: "learned" })}
-          onOpenMistakes={() => setScreen({ name: "mistakes" })}
-          onOpenDailyReview={() => setScreen({ name: "review", mode: "daily" })}
-          onSwitchCourse={() => setScreen({ name: "course" })}
-          onReturnToCourseSelection={() => setScreen({ name: "course" })}
-          compact={screen.name !== "map"}
+          onMap={() => navigate({ name: "map", courseId: course.id })}
+          onOpenLearned={() =>
+            navigate({ name: "learned", courseId: course.id })
+          }
+          onOpenMistakes={() =>
+            navigate({ name: "mistakes", courseId: course.id })
+          }
+          onOpenDailyReview={() =>
+            navigate({
+              name: "review",
+              courseId: course.id,
+              mode: "daily",
+            })
+          }
+          onSwitchCourse={() => navigate({ name: "course" })}
+          onReturnToCourseSelection={() => navigate({ name: "course" })}
+          compact={route.name !== "map"}
         />
       )}
 
-      {screen.name === "course" && (
+      {route.name === "course" && (
         <CourseLandingScreen
           selectedCourseId={selectedCourseId}
           onSelectCourse={chooseCourse}
         />
       )}
 
-      {screen.name === "map" && (
+      {route.name === "map" && (
         <MapScreen
           course={course}
           worlds={course.worlds}
           onOpenWorld={openWorld}
+          resumeSession={resumeSession}
+          onResumeSession={resumeLastActivity}
         />
       )}
 
-      {screen.name === "learned" && (
+      {route.name === "learned" && (
         <WhatYouLearnedScreen
           course={course}
           worlds={course.worlds}
-          onBack={showMap}
+          onBack={() => navigate({ name: "map", courseId: course.id })}
         />
       )}
 
-      {screen.name === "mistakes" && (
+      {route.name === "mistakes" && (
         <MistakeNotebookScreen
           course={course}
-          onBack={showMap}
+          onBack={() => navigate({ name: "map", courseId: course.id })}
           onReplay={(selectedConceptIds) =>
-            setScreen({
+            navigate({
               name: "review",
+              courseId: course.id,
               mode: "mistakes",
               selectedConceptIds,
             })
@@ -103,39 +304,51 @@ function App() {
         />
       )}
 
-      {screen.name === "world" && (
+      {route.name === "world" && world && (
         <WorldScreen
-          world={screen.world}
-          onBack={showMap}
+          world={world}
+          onBack={() => navigate({ name: "map", courseId: course.id })}
           onOpenActivity={(activityType) =>
-            openActivity(screen.world, activityType)
+            openActivity(world, activityType)
           }
         />
       )}
 
-      {screen.name === "activity" && (
+      {route.name === "activity" && world && (
         <ActivityScreen
           course={course}
-          world={screen.world}
-          activityType={screen.activityType}
-          onBack={() => setScreen({ name: "world", world: screen.world })}
-          onComplete={showMap}
+          world={world}
+          activityType={route.activityType}
+          onBack={() =>
+            navigate({
+              name: "world",
+              courseId: course.id,
+              worldId: world.id,
+            })
+          }
+          onBackToMap={() =>
+            navigate({ name: "map", courseId: course.id })
+          }
+          onComplete={completeSessionToMap}
         />
       )}
 
-      {screen.name === "review" && (
+      {route.name === "review" && (
         <AdaptiveReviewActivity
           course={course}
-          mode={screen.mode}
-          selectedConceptIds={screen.selectedConceptIds}
+          mode={route.mode}
+          selectedConceptIds={route.selectedConceptIds}
           onBack={() =>
-            setScreen(
-              screen.mode === "mistakes"
-                ? { name: "mistakes" }
-                : { name: "map" },
+            navigate(
+              route.mode === "mistakes"
+                ? { name: "mistakes", courseId: course.id }
+                : { name: "map", courseId: course.id },
             )
           }
-          onComplete={showMap}
+          onBackToMap={() =>
+            navigate({ name: "map", courseId: course.id })
+          }
+          onComplete={completeSessionToMap}
         />
       )}
     </div>

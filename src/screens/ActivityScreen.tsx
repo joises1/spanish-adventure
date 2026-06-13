@@ -5,6 +5,7 @@ import { MatchingActivity } from "../activities/MatchingActivity";
 import { SentenceBuilderActivity } from "../activities/SentenceBuilderActivity";
 import { StoryShuffleActivity } from "../activities/StoryShuffleActivity";
 import { UnitChallengeActivity } from "../activities/UnitChallengeActivity";
+import { Sparkles } from "lucide-react";
 import { getCompletedPreviousWords } from "../engine/courseScope";
 import { getActivityAvailability } from "../engine/activityAvailability";
 import { ModeShell } from "./LearnMode";
@@ -16,6 +17,7 @@ type ActivityScreenProps = {
   world: World;
   activityType: ActivityType;
   onBack: () => void;
+  onBackToMap: () => void;
   onComplete: () => void;
 };
 
@@ -24,6 +26,7 @@ export function ActivityScreen({
   world,
   activityType,
   onBack,
+  onBackToMap,
   onComplete,
 }: ActivityScreenProps) {
   const { state } = useGame();
@@ -41,6 +44,7 @@ export function ActivityScreen({
         title="Activity unavailable"
         subtitle="This unit needs more structured learning material"
         onBack={onBack}
+        onBackToMap={onBackToMap}
         icon={<Sparkles size={19} />}
       >
         <section className="activity-empty">
@@ -59,7 +63,9 @@ export function ActivityScreen({
       return (
         <ExploreActivity
           world={world}
+          courseId={course.id}
           onBack={onBack}
+          onBackToMap={onBackToMap}
           onComplete={onComplete}
         />
       );
@@ -67,7 +73,9 @@ export function ActivityScreen({
       return (
         <MatchingActivity
           world={world}
+          courseId={course.id}
           onBack={onBack}
+          onBackToMap={onBackToMap}
           onComplete={onComplete}
         />
       );
@@ -75,7 +83,9 @@ export function ActivityScreen({
       return (
         <ListeningActivity
           world={world}
+          courseId={course.id}
           onBack={onBack}
+          onBackToMap={onBackToMap}
           onComplete={onComplete}
         />
       );
@@ -83,7 +93,9 @@ export function ActivityScreen({
       return (
         <SentenceBuilderActivity
           world={world}
+          courseId={course.id}
           onBack={onBack}
+          onBackToMap={onBackToMap}
           onComplete={onComplete}
         />
       );
@@ -91,8 +103,10 @@ export function ActivityScreen({
       return (
         <DialogueActivity
           world={world}
+          courseId={course.id}
           previouslyLearnedWords={previouslyLearnedWords}
           onBack={onBack}
+          onBackToMap={onBackToMap}
           onComplete={onComplete}
         />
       );
@@ -100,8 +114,10 @@ export function ActivityScreen({
       return (
         <StoryShuffleActivity
           world={world}
+          courseId={course.id}
           previouslyLearnedWords={previouslyLearnedWords}
           onBack={onBack}
+          onBackToMap={onBackToMap}
           onComplete={onComplete}
         />
       );
@@ -112,6 +128,7 @@ export function ActivityScreen({
           world={world}
           previouslyLearnedWords={previouslyLearnedWords}
           onBack={onBack}
+          onBackToMap={onBackToMap}
           onComplete={onComplete}
         />
       );
@@ -119,4 +136,3 @@ export function ActivityScreen({
       return null;
   }
 }
-import { Sparkles } from "lucide-react";

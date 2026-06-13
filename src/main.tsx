@@ -3,13 +3,16 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { CourseProvider } from "./state/CourseContext";
 import { GameProvider } from "./state/GameContext";
+import { SessionProvider } from "./state/SessionContext";
 import "./styles.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <CourseProvider>
       <GameProvider>
-        <App />
+        <SessionProvider>
+          <App />
+        </SessionProvider>
       </GameProvider>
     </CourseProvider>
   </StrictMode>,
