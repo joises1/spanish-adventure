@@ -10,6 +10,7 @@ import {
   normalizeText,
   shuffle,
 } from "./activityEngine.ts";
+import { getConceptMastery } from "./mastery.ts";
 import { createSeededRandom } from "./narrativeEngine.ts";
 
 export type ReviewConcept = {
@@ -31,6 +32,7 @@ export const selectAdaptiveReviewConcepts = (
   mode: "daily" | "mistakes",
   count = 8,
   now = new Date(),
+  selectedConceptIds?: ReadonlySet<string>,
 ) => {
   const learnedIds = new Set(
     Object.values(state.worlds).flatMap((progress) => [
@@ -45,7 +47,15 @@ export const selectAdaptiveReviewConcepts = (
         const mastery = state.mastery[word.id];
         const mistake = state.mistakes[word.id];
         const legacyIncorrect = state.words[word.id]?.incorrect ?? 0;
-        if (mode === "mistakes" && !mistake && legacyIncorrect === 0) {
+        if (selectedConceptIds && !selectedConceptIds.has(word.id)) {
+          return null;
+        }
+        if (
+          mode === "mistakes" &&
+          !selectedConceptIds &&
+          ((!mistake && legacyIncorrect === 0) ||
+            mistake?.status === "resolved")
+        ) {
           return null;
         }
         if (
@@ -57,7 +67,7 @@ export const selectAdaptiveReviewConcepts = (
           return null;
         }
 
-        const masteryEstimate = mastery?.masteryEstimate ?? 0;
+        const masteryEstimate = getConceptMastery(mastery, now);
         const age = ageInDays(mastery?.lastPracticedAt, now);
         const incorrectCount = Math.max(
           mistake?.incorrectCount ?? 0,
@@ -66,11 +76,20 @@ export const selectAdaptiveReviewConcepts = (
         );
         const recentMasteryPenalty =
           masteryEstimate >= 85 && age < 7 ? 220 : 0;
+        const mistakeStatusBoost =
+          mistake?.status === "new"
+            ? 45
+            : mistake?.status === "practicing"
+              ? 30
+              : mistake?.status === "improved"
+                ? 8
+                : -180;
         const priority =
           (100 - masteryEstimate) * 2 +
           Math.min(90, age) +
           incorrectCount * 18 -
-          recentMasteryPenalty;
+          recentMasteryPenalty +
+          mistakeStatusBoost;
         return { word, world, priority };
       }),
     )

@@ -2,10 +2,14 @@ import {
   getActivityProgressKey,
   scoreToStars,
 } from "../engine/activityEngine.ts";
+import { applyMasteryEvidence } from "../engine/mastery.ts";
+import { applyMistakeEvidence } from "../engine/mistakeLifecycle.ts";
 import type {
   ActivityType,
-  ConceptMastery,
+  CourseId,
   GameState,
+  MasteryResponseMode,
+  MasterySkill,
   ProgressConcept,
   VocabularyWord,
 } from "../types";
@@ -20,9 +24,16 @@ type BaseProgressEvent = {
 
 export type AnswerProgressEvent = BaseProgressEvent & {
   kind: "answer";
+  courseId?: CourseId;
   activityType: ActivityType;
   concepts: ProgressConcept[];
   isCorrect: boolean;
+  skill?: MasterySkill;
+  responseMode?: MasteryResponseMode;
+  isRetry?: boolean;
+  userAnswer?: string;
+  correctAnswer?: string;
+  explanation?: string;
   rewardXp?: number;
 };
 
@@ -101,6 +112,11 @@ const applyAnswer = (
   const nextMistakes = { ...state.mistakes };
   const nextWorlds = { ...state.worlds };
   const conceptsByWorld = new Map<string, ProgressConcept[]>();
+  const skill = event.skill ?? "vocabulary";
+  const responseMode = event.responseMode ?? "recognition";
+  const isReview =
+    event.activityType === "daily-review" ||
+    event.activityType === "mistake-review";
 
   concepts.forEach((concept) => {
     const existing = conceptsByWorld.get(concept.worldId) ?? [];
@@ -117,36 +133,46 @@ const applyAnswer = (
       lastSeen: now,
     };
 
-    const mastery: ConceptMastery = nextMastery[concept.word.id] ?? {
-      seenCount: 0,
-      correctCount: 0,
-      incorrectCount: 0,
-      masteryEstimate: 0,
-    };
-    const correctCount = mastery.correctCount + (event.isCorrect ? 1 : 0);
-    const incorrectCount =
-      mastery.incorrectCount + (event.isCorrect ? 0 : 1);
-    nextMastery[concept.word.id] = {
-      seenCount: mastery.seenCount + 1,
-      correctCount,
-      incorrectCount,
-      lastPracticedAt: now,
-      masteryEstimate: Math.round(
-        (correctCount / Math.max(1, correctCount + incorrectCount)) * 100,
-      ),
-    };
-
-    if (!event.isCorrect) {
-      const mistake = nextMistakes[concept.word.id];
-      nextMistakes[concept.word.id] = {
-        conceptId: concept.word.id,
+    nextMastery[concept.word.id] = applyMasteryEvidence(
+      nextMastery[concept.word.id],
+      {
+        courseId:
+          event.courseId ??
+          (concept.word.id.startsWith("a1") ? "a1-a2" : "b1"),
         worldId: concept.worldId,
+        unit: concept.unit,
         activityType: event.activityType,
-        incorrectCount: (mistake?.incorrectCount ?? 0) + 1,
-        lastIncorrectAt: now,
-        correctedAnswer: concept.word.en,
-        example: concept.word.example,
-      };
+        skill,
+        responseMode,
+        isCorrect: event.isCorrect,
+        isRetry: Boolean(event.isRetry),
+        isReview,
+        practicedAt: now,
+      },
+    );
+
+    const nextMistake = applyMistakeEvidence(
+      nextMistakes[concept.word.id],
+      {
+        courseId:
+          event.courseId ??
+          (concept.word.id.startsWith("a1") ? "a1-a2" : "b1"),
+        concept,
+        activityType: event.activityType,
+        skill,
+        isCorrect: event.isCorrect,
+        isRetry: Boolean(event.isRetry),
+        isReview,
+        userAnswer: event.userAnswer ?? "",
+        correctAnswer: event.correctAnswer ?? concept.word.en,
+        explanation:
+          event.explanation ??
+          `${concept.word.es} means ${concept.word.en}.`,
+        practicedAt: now,
+      },
+    );
+    if (nextMistake) {
+      nextMistakes[concept.word.id] = nextMistake;
     }
   });
 
@@ -192,11 +218,12 @@ const applySeen = (
   const nextMastery = { ...state.mastery };
 
   words.forEach((word) => {
-    const mastery: ConceptMastery = nextMastery[word.id] ?? {
+    const mastery = nextMastery[word.id] ?? {
       seenCount: 0,
       correctCount: 0,
       incorrectCount: 0,
       masteryEstimate: 0,
+      skills: {},
     };
     nextMastery[word.id] = {
       ...mastery,

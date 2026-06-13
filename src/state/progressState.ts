@@ -5,10 +5,18 @@ import type {
   ConceptMastery,
   CourseId,
   GameState,
+  MasteryDimension,
+  MasterySkill,
   MistakeRecord,
+  MistakeStatus,
   ProcessedProgressEvent,
   WorldProgress,
 } from "../types";
+import {
+  createEmptyMasteryDimension,
+  getConceptMastery,
+  toMasterySkill,
+} from "../engine/mastery.ts";
 import type { SafeStorage, StorageFailure } from "./storage";
 
 export type { StorageLike } from "./storage";
@@ -37,6 +45,19 @@ const EVENT_KINDS = new Set<ProcessedProgressEvent["kind"]>([
   "activity-completion",
   "session-completion",
   "review-completion",
+]);
+const MASTERY_SKILLS = new Set<MasterySkill>([
+  "vocabulary",
+  "listening",
+  "sentence-building",
+  "grammar",
+  "dialogue",
+]);
+const MISTAKE_STATUSES = new Set<MistakeStatus>([
+  "new",
+  "practicing",
+  "improved",
+  "resolved",
 ]);
 
 type UnknownRecord = Record<string, unknown>;
@@ -143,20 +164,99 @@ const sanitizeActivityProgress = (
   };
 };
 
+const sanitizeMasteryDimension = (
+  value: unknown,
+): MasteryDimension | undefined => {
+  if (!isRecord(value)) return undefined;
+  const attempts = integer(value.attempts, 0);
+  const firstAttemptCorrect = integer(
+    value.firstAttemptCorrect,
+    0,
+    0,
+    attempts,
+  );
+  const retryCorrect = integer(value.retryCorrect, 0, 0, attempts);
+  const incorrectCount = integer(value.incorrectCount, 0, 0, attempts);
+  const weightedPossible = finiteNumber(value.weightedPossible, attempts);
+  return {
+    attempts,
+    firstAttemptCorrect,
+    retryCorrect,
+    incorrectCount,
+    weightedEarned: finiteNumber(
+      value.weightedEarned,
+      firstAttemptCorrect + retryCorrect * 0.3,
+      0,
+      weightedPossible,
+    ),
+    weightedPossible,
+    lastPracticedAt: optionalString(value.lastPracticedAt),
+  };
+};
+
 const sanitizeMastery = (value: unknown): ConceptMastery | undefined => {
   if (!isRecord(value)) return undefined;
   const correctCount = integer(value.correctCount, 0);
   const incorrectCount = integer(value.incorrectCount, 0);
-  return {
+  const sanitizedSkills = sanitizeRecordMap(
+    value.skills,
+    (entry, key) =>
+      MASTERY_SKILLS.has(key as MasterySkill)
+        ? sanitizeMasteryDimension(entry)
+        : undefined,
+  ) as Partial<Record<MasterySkill, MasteryDimension>>;
+  const legacyAttempts = correctCount + incorrectCount;
+  const skills =
+    Object.keys(sanitizedSkills).length > 0
+      ? sanitizedSkills
+      : legacyAttempts > 0
+        ? {
+            vocabulary: {
+              ...createEmptyMasteryDimension(),
+              attempts: legacyAttempts,
+              firstAttemptCorrect: correctCount,
+              incorrectCount,
+              weightedEarned: correctCount * 0.595,
+              weightedPossible: legacyAttempts * 0.595,
+              lastPracticedAt: optionalString(value.lastPracticedAt),
+            },
+          }
+        : {};
+  const mastery: ConceptMastery = {
+    courseId:
+      value.courseId === "a1-a2" || value.courseId === "b1"
+        ? value.courseId
+        : undefined,
+    worldId: optionalString(value.worldId),
+    unit:
+      typeof value.unit === "number"
+        ? integer(value.unit, 0)
+        : undefined,
+    lastActivityType: ACTIVITY_TYPES.has(
+      value.lastActivityType as ActivityType,
+    )
+      ? (value.lastActivityType as ActivityType)
+      : undefined,
     seenCount: integer(
       value.seenCount,
-      correctCount + incorrectCount,
-      correctCount + incorrectCount,
+      legacyAttempts,
+      legacyAttempts,
     ),
     correctCount,
     incorrectCount,
     lastPracticedAt: optionalString(value.lastPracticedAt),
     masteryEstimate: integer(value.masteryEstimate, 0, 0, 100),
+    skills,
+  };
+  return {
+    ...mastery,
+    masteryEstimate:
+      Object.keys(skills).length > 0
+          ? getConceptMastery(
+            mastery,
+            new Date(mastery.lastPracticedAt ?? 0),
+          )
+        : mastery.masteryEstimate,
   };
 };
 
@@ -167,14 +267,29 @@ const sanitizeMistake = (
   if (!isRecord(value)) return undefined;
   const conceptId = optionalString(value.conceptId) ?? key;
   const worldId = optionalString(value.worldId);
-  const correctedAnswer = optionalString(value.correctedAnswer);
+  const correctAnswer =
+    optionalString(value.correctAnswer) ??
+    optionalString(value.correctedAnswer);
   const lastIncorrectAt = optionalString(value.lastIncorrectAt);
   const activityType = ACTIVITY_TYPES.has(value.activityType as ActivityType)
     ? (value.activityType as ActivityType)
     : undefined;
-  if (!worldId || !correctedAnswer || !lastIncorrectAt || !activityType) {
+  if (!worldId || !correctAnswer || !lastIncorrectAt || !activityType) {
     return undefined;
   }
+  const courseId =
+    value.courseId === "a1-a2" || value.courseId === "b1"
+      ? value.courseId
+      : conceptId.startsWith("a1") || worldId.startsWith("a1")
+        ? "a1-a2"
+        : "b1";
+  const skill =
+    MASTERY_SKILLS.has(value.skill as MasterySkill)
+      ? (value.skill as MasterySkill)
+      : toMasterySkill(undefined, activityType) ?? "vocabulary";
+  const status = MISTAKE_STATUSES.has(value.status as MistakeStatus)
+    ? (value.status as MistakeStatus)
+    : "practicing";
   const example = isRecord(value.example)
     ? {
         es: optionalString(value.example.es) ?? "",
@@ -183,11 +298,27 @@ const sanitizeMistake = (
     : undefined;
   return {
     conceptId,
+    courseId,
     worldId,
+    unit: integer(value.unit, 0),
     activityType,
+    skill,
+    status,
+    userAnswer: optionalString(value.userAnswer) ?? "Not recorded",
+    correctAnswer,
+    explanation:
+      optionalString(value.explanation) ??
+      `The correct answer is ${correctAnswer}.`,
     incorrectCount: integer(value.incorrectCount, 1, 1),
+    consecutiveErrors: integer(value.consecutiveErrors, 1),
+    consecutiveSuccesses: integer(value.consecutiveSuccesses, 0),
+    successfulReviews: integer(value.successfulReviews, 0),
+    reopenErrors: integer(value.reopenErrors, 0, 0, 1),
+    reopenedCount: integer(value.reopenedCount, 0),
     lastIncorrectAt,
-    correctedAnswer,
+    lastPracticedAt:
+      optionalString(value.lastPracticedAt) ?? lastIncorrectAt,
+    resolvedAt: optionalString(value.resolvedAt),
     example: example?.es && example.en ? example : undefined,
   };
 };

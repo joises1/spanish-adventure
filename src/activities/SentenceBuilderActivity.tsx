@@ -21,6 +21,7 @@ import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
 import type { ActivityToken, World } from "../types";
 import {
+  getAnswerEvidence,
   getNewlyCollectedWords,
   getQuestionConcepts,
   getSessionScore,
@@ -96,6 +97,7 @@ export function SentenceBuilderActivity({
       activityType: "sentence-builder",
       concepts: getQuestionConcepts([world], world, question),
       isCorrect: correct,
+      ...getAnswerEvidence(question, builtSentence),
     });
 
     if (!correct && !question.isRetry) {

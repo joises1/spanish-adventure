@@ -111,6 +111,11 @@ export function MatchingActivity({
       activityType: "matching",
       concepts: getQuestionConcepts([world], world, targetQuestion),
       isCorrect: isMatch,
+      skill: "vocabulary",
+      responseMode: "recognition",
+      userAnswer: `${selected.text} / ${card.text}`,
+      correctAnswer: `${targetQuestion.prompt} / ${targetQuestion.answer}`,
+      explanation: `${targetQuestion.prompt} matches ${targetQuestion.answer}.`,
     });
 
     if (!isMatch) {

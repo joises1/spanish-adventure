@@ -12,6 +12,7 @@ import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
 import type { Course } from "../types";
 import {
+  getAnswerEvidence,
   getQuestionConcepts,
   getSessionScore,
 } from "./activityHelpers";
@@ -19,6 +20,7 @@ import {
 type AdaptiveReviewActivityProps = {
   course: Course;
   mode: "daily" | "mistakes";
+  selectedConceptIds?: string[];
   onBack: () => void;
   onComplete: () => void;
 };
@@ -26,6 +28,7 @@ type AdaptiveReviewActivityProps = {
 export function AdaptiveReviewActivity({
   course,
   mode,
+  selectedConceptIds,
   onBack,
   onComplete,
 }: AdaptiveReviewActivityProps) {
@@ -42,6 +45,10 @@ export function AdaptiveReviewActivity({
       state,
       mode,
       mode === "daily" ? 8 : 10,
+      new Date(),
+      selectedConceptIds
+        ? new Set(selectedConceptIds)
+        : undefined,
     ),
   );
   const [questions] = useState(() =>
@@ -60,7 +67,7 @@ export function AdaptiveReviewActivity({
   const submittedQuestionIds = useRef(new Set<string>());
   const completionStarted = useRef(false);
 
-  const recordResult = (isCorrect: boolean) => {
+  const recordResult = (isCorrect: boolean, userAnswer: string) => {
     if (!question || submittedQuestionIds.current.has(question.id)) return;
     submittedQuestionIds.current.add(question.id);
     recordActivityAnswer({
@@ -70,6 +77,7 @@ export function AdaptiveReviewActivity({
         mode === "daily" ? "daily-review" : "mistake-review",
       concepts: getQuestionConcepts(course.worlds, shellWorld, question),
       isCorrect,
+      ...getAnswerEvidence(question, userAnswer),
     });
     setCorrectCount((current) => current + (isCorrect ? 1 : 0));
   };

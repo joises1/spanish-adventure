@@ -26,8 +26,12 @@ import {
   getCompletion,
   getStars,
 } from "../engine/game";
+import {
+  getWorldMastery,
+  getWorldSkillMastery,
+} from "../engine/mastery";
 import { useGame } from "../state/GameContext";
-import type { ActivityType, World } from "../types";
+import type { ActivityType, MasterySkill, World } from "../types";
 
 type WorldScreenProps = {
   world: World;
@@ -55,6 +59,14 @@ const activityIcons: Record<string, ReactNode> = {
   "unit-challenge": <Trophy size={23} aria-hidden="true" />,
 };
 
+const masterySkills: { skill: MasterySkill; label: string }[] = [
+  { skill: "vocabulary", label: "Words" },
+  { skill: "listening", label: "Listening" },
+  { skill: "sentence-building", label: "Sentences" },
+  { skill: "grammar", label: "Grammar" },
+  { skill: "dialogue", label: "Context" },
+];
+
 export function WorldScreen({
   world,
   onBack,
@@ -74,12 +86,7 @@ export function WorldScreen({
       ...getActivityAvailability(world, type),
     };
   }).filter((activity) => Boolean(activity));
-  const unitMastery = Math.round(
-    world.words.reduce(
-      (total, word) => total + (state.mastery[word.id]?.masteryEstimate ?? 0),
-      0,
-    ) / Math.max(1, world.words.length),
-  );
+  const unitMastery = getWorldMastery(state, world);
   const recommendedActivity =
     activities.find((activity) => {
       if (!activity?.available) return false;
@@ -168,6 +175,15 @@ export function WorldScreen({
           >
             <span>{unitMastery}%</span>
           </div>
+        </section>
+
+        <section className="mastery-skill-strip" aria-label="Mastery by skill">
+          {masterySkills.map(({ skill, label }) => (
+            <span key={skill}>
+              <small>{label}</small>
+              <strong>{getWorldSkillMastery(state, world, skill)}%</strong>
+            </span>
+          ))}
         </section>
 
         {recommendedActivity && (
@@ -271,7 +287,7 @@ export function WorldScreen({
                   </span>
                   <span>
                     <Target size={13} aria-hidden="true" />
-                    {progress?.bestScore ?? 0}% mastery
+                    {progress?.bestScore ?? 0}% best score
                   </span>
                 </span>
                 {!activity.available && (

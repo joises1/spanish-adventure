@@ -102,6 +102,18 @@ export type ActivitySkill =
   | "dialogue"
   | "story";
 
+export type MasterySkill =
+  | "vocabulary"
+  | "listening"
+  | "sentence-building"
+  | "grammar"
+  | "dialogue";
+
+export type MasteryResponseMode =
+  | "recognition"
+  | "recall"
+  | "context";
+
 export type ActivityQuestion = {
   id: string;
   semanticKey: string;
@@ -127,6 +139,7 @@ export type ActivityQuestion = {
 export type ProgressConcept = {
   word: VocabularyWord;
   worldId: string;
+  unit?: number;
 };
 
 export type ProcessedProgressEvent = {
@@ -174,11 +187,26 @@ export type ActivityResult = {
 };
 
 export type ConceptMastery = {
+  courseId?: CourseId;
+  worldId?: string;
+  unit?: number;
+  lastActivityType?: ActivityType;
   seenCount: number;
   correctCount: number;
   incorrectCount: number;
   lastPracticedAt?: string;
   masteryEstimate: number;
+  skills: Partial<Record<MasterySkill, MasteryDimension>>;
+};
+
+export type MasteryDimension = {
+  attempts: number;
+  firstAttemptCorrect: number;
+  retryCorrect: number;
+  incorrectCount: number;
+  weightedEarned: number;
+  weightedPossible: number;
+  lastPracticedAt?: string;
 };
 
 export type ActivityProgress = {
@@ -188,13 +216,32 @@ export type ActivityProgress = {
   lastCompletedAt?: string;
 };
 
+export type MistakeStatus =
+  | "new"
+  | "practicing"
+  | "improved"
+  | "resolved";
+
 export type MistakeRecord = {
   conceptId: string;
+  courseId: CourseId;
   worldId: string;
+  unit: number;
   activityType: ActivityType;
+  skill: MasterySkill;
+  status: MistakeStatus;
+  userAnswer: string;
+  correctAnswer: string;
+  explanation: string;
   incorrectCount: number;
+  consecutiveErrors: number;
+  consecutiveSuccesses: number;
+  successfulReviews: number;
+  reopenErrors: number;
+  reopenedCount: number;
   lastIncorrectAt: string;
-  correctedAnswer: string;
+  lastPracticedAt: string;
+  resolvedAt?: string;
   example?: Example;
 };
 

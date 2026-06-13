@@ -196,6 +196,55 @@ test("cross-world concepts update their source worlds and mistake attribution", 
   assert.equal(result.mistakes[b1Word.id].worldId, "b1-work");
 });
 
+test("answer evidence keeps course, unit, activity, concept, and skill attribution", () => {
+  const initial = createInitialGameState("2026-06-12");
+  const result = applyProgressEvent(initial, {
+    kind: "answer",
+    id: "sentence-session:answer:q1",
+    courseId: "a1-a2",
+    activityType: "sentence-builder",
+    concepts: [
+      {
+        ...concept(beginnerWord, "a1-greetings"),
+        unit: 1,
+      },
+    ],
+    skill: "sentence-building",
+    responseMode: "recall",
+    isCorrect: false,
+    userAnswer: "Hola yo",
+    correctAnswer: "Yo digo hola",
+    explanation: "The subject comes before the verb here.",
+    occurredAt: "2026-06-12T12:00:00.000Z",
+  });
+  const mistake = result.mistakes[beginnerWord.id];
+
+  assert.equal(mistake.courseId, "a1-a2");
+  assert.equal(mistake.worldId, "a1-greetings");
+  assert.equal(mistake.unit, 1);
+  assert.equal(mistake.activityType, "sentence-builder");
+  assert.equal(mistake.skill, "sentence-building");
+  assert.equal(mistake.conceptId, beginnerWord.id);
+  assert.equal(mistake.userAnswer, "Hola yo");
+  assert.equal(mistake.correctAnswer, "Yo digo hola");
+  assert.equal(
+    result.mastery[beginnerWord.id].skills["sentence-building"]
+      ?.incorrectCount,
+    1,
+  );
+  assert.equal(
+    result.mastery[beginnerWord.id].skills.vocabulary,
+    undefined,
+  );
+  assert.equal(result.mastery[beginnerWord.id].courseId, "a1-a2");
+  assert.equal(result.mastery[beginnerWord.id].worldId, "a1-greetings");
+  assert.equal(result.mastery[beginnerWord.id].unit, 1);
+  assert.equal(
+    result.mastery[beginnerWord.id].lastActivityType,
+    "sentence-builder",
+  );
+});
+
 test("course states remain isolated even when event IDs are identical", () => {
   const event = {
     kind: "answer" as const,

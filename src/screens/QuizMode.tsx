@@ -81,8 +81,10 @@ export function QuizMode({
     recordAnswer(
       createProgressEventId(sessionId, "answer", word.id),
       world.id,
+      world.unit,
       word,
       correct,
+      choice.en,
     );
   };
 

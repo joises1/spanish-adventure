@@ -19,6 +19,7 @@ import { useGame } from "../state/GameContext";
 import { createProgressEventId } from "../state/progressEvents";
 import type { World } from "../types";
 import {
+  getAnswerEvidence,
   getNewlyCollectedWords,
   getQuestionConcepts,
   getSessionScore,
@@ -74,6 +75,10 @@ export function ListeningActivity({
       activityType: "listening",
       concepts: getQuestionConcepts([world], world, question),
       isCorrect: correct,
+      ...getAnswerEvidence(
+        question,
+        question.choices?.find((choice) => choice.id === choiceId)?.text ?? "",
+      ),
     });
 
     if (!correct && !question.isRetry) {

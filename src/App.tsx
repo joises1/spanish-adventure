@@ -16,7 +16,11 @@ type Screen =
   | { name: "map" }
   | { name: "learned" }
   | { name: "mistakes" }
-  | { name: "review"; mode: "daily" | "mistakes" }
+  | {
+      name: "review";
+      mode: "daily" | "mistakes";
+      selectedConceptIds?: string[];
+    }
   | { name: "world"; world: World }
   | { name: "activity"; world: World; activityType: ActivityType };
 
@@ -89,7 +93,13 @@ function App() {
         <MistakeNotebookScreen
           course={course}
           onBack={showMap}
-          onReplay={() => setScreen({ name: "review", mode: "mistakes" })}
+          onReplay={(selectedConceptIds) =>
+            setScreen({
+              name: "review",
+              mode: "mistakes",
+              selectedConceptIds,
+            })
+          }
         />
       )}
 
@@ -117,6 +127,7 @@ function App() {
         <AdaptiveReviewActivity
           course={course}
           mode={screen.mode}
+          selectedConceptIds={screen.selectedConceptIds}
           onBack={() =>
             setScreen(
               screen.mode === "mistakes"

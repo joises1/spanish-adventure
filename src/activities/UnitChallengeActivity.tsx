@@ -18,6 +18,7 @@ import type {
   World,
 } from "../types";
 import {
+  getAnswerEvidence,
   getQuestionConcepts,
   getNewlyCollectedWords,
   getSessionScore,
@@ -84,7 +85,7 @@ export function UnitChallengeActivity({
   const answeredQuestionIds = useRef(new Set<string>());
   const completionStarted = useRef(false);
 
-  const recordResult = (isCorrect: boolean) => {
+  const recordResult = (isCorrect: boolean, userAnswer: string) => {
     if (!question || answeredQuestionIds.current.has(question.id)) return;
     answeredQuestionIds.current.add(question.id);
     recordActivityAnswer({
@@ -93,6 +94,7 @@ export function UnitChallengeActivity({
       activityType: "unit-challenge",
       concepts: getQuestionConcepts(course.worlds, world, question),
       isCorrect,
+      ...getAnswerEvidence(question, userAnswer),
     });
     setCorrectCount((current) => current + (isCorrect ? 1 : 0));
 

@@ -14,7 +14,7 @@ import { SpeakerButton } from "./SpeakerButton";
 
 type MixedQuestionCardProps = {
   question: ActivityQuestion;
-  onResult: (isCorrect: boolean) => void;
+  onResult: (isCorrect: boolean, userAnswer: string) => void;
   onContinue: () => void;
   isLast: boolean;
 };
@@ -44,7 +44,9 @@ export function MixedQuestionCard({
     const correct = choiceId === question.correctChoiceId;
     setSelectedChoiceId(choiceId);
     setAnswered(true);
-    onResult(correct);
+    const selectedText =
+      question.choices?.find((choice) => choice.id === choiceId)?.text ?? "";
+    onResult(correct, selectedText);
   };
 
   const addToken = (token: ActivityToken) => {
@@ -71,7 +73,7 @@ export function MixedQuestionCard({
     const correct =
       normalizeSentence(builtSentence) === normalizeSentence(question.answer);
     setAnswered(true);
-    onResult(correct);
+    onResult(correct, builtSentence);
   };
 
   const selectedIds = new Set(selectedTokens.map((token) => token.id));

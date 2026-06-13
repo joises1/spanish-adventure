@@ -23,6 +23,7 @@ import {
 } from "../state/progressEvents";
 import type { DialogueTurn, VocabularyWord, World } from "../types";
 import {
+  getAnswerEvidence,
   getNewlyCollectedWords,
   getQuestionConcepts,
   getSessionScore,
@@ -71,7 +72,7 @@ export function DialogueActivity({
   const answeredQuestionIds = useRef(new Set<string>());
   const completionStarted = useRef(false);
 
-  const submitResult = (isCorrect: boolean) => {
+  const submitResult = (isCorrect: boolean, userAnswer: string) => {
     if (
       !question ||
       answered ||
@@ -89,13 +90,17 @@ export function DialogueActivity({
       activityType: "dialogue",
       concepts: getQuestionConcepts([world], world, question),
       isCorrect,
+      ...getAnswerEvidence(question, userAnswer),
     });
   };
 
   const choose = (choiceId: string) => {
     if (answered || !question) return;
     setSelectedChoiceId(choiceId);
-    submitResult(choiceId === question.correctChoiceId);
+    submitResult(
+      choiceId === question.correctChoiceId,
+      question.choices?.find((choice) => choice.id === choiceId)?.text ?? "",
+    );
   };
 
   const moveTurn = (turnIndex: number, direction: -1 | 1) => {
@@ -115,6 +120,7 @@ export function DialogueActivity({
       orderedTurns.every(
         (turn, turnIndex) => turn.id === question.orderedItemIds?.[turnIndex],
       ),
+      orderedTurns.map((turn) => `${turn.speaker}: ${turn.text}`).join(" | "),
     );
   };
 

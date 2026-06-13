@@ -137,3 +137,30 @@ test("daily review uses multiple activity types without duplicates", () => {
   );
   assert.ok(questions.length >= 5 && questions.length <= 10);
 });
+
+test("resolved mistakes leave normal replay but can be explicitly selected", () => {
+  const resolvedState = state();
+  resolvedState.mistakes["review-0"] = {
+    ...resolvedState.mistakes["review-0"],
+    status: "resolved",
+  };
+
+  const automatic = selectAdaptiveReviewConcepts(
+    [world],
+    resolvedState,
+    "mistakes",
+    8,
+    new Date("2026-06-12T12:00:00.000Z"),
+  );
+  const selected = selectAdaptiveReviewConcepts(
+    [world],
+    resolvedState,
+    "mistakes",
+    8,
+    new Date("2026-06-12T12:00:00.000Z"),
+    new Set(["review-0"]),
+  );
+
+  assert.deepEqual(automatic, []);
+  assert.deepEqual(selected.map((concept) => concept.word.id), ["review-0"]);
+});

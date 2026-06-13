@@ -62,8 +62,10 @@ type GameContextValue = {
   recordAnswer: (
     eventId: string,
     worldId: string,
+    unit: number,
     word: VocabularyWord,
     isCorrect: boolean,
+    userAnswer: string,
   ) => void;
   completeSession: (event: SessionCompletionProgressEvent) => void;
   recordActivitySeen: (event: SeenProgressEvent) => void;
@@ -190,21 +192,29 @@ export function GameProvider({ children }: PropsWithChildren) {
     (
       eventId: string,
       worldId: string,
+      unit: number,
       word: VocabularyWord,
       isCorrect: boolean,
+      userAnswer: string,
     ) => {
-      const concepts: ProgressConcept[] = [{ word, worldId }];
+      const concepts: ProgressConcept[] = [{ word, worldId, unit }];
       updateActiveState((current) =>
         applyProgressEvent(current, {
           kind: "answer",
           id: eventId,
+          courseId: activeCourseId,
           activityType: "multiple-choice",
           concepts,
           isCorrect,
+          skill: "vocabulary",
+          responseMode: "recognition",
+          userAnswer,
+          correctAnswer: word.en,
+          explanation: `${word.es} means ${word.en}.`,
         }),
       );
     },
-    [updateActiveState],
+    [activeCourseId, updateActiveState],
   );
 
   const completeSession = useCallback(
@@ -216,9 +226,14 @@ export function GameProvider({ children }: PropsWithChildren) {
 
   const recordActivityAnswer = useCallback(
     (event: AnswerProgressEvent) => {
-      updateActiveState((current) => applyProgressEvent(current, event));
+      updateActiveState((current) =>
+        applyProgressEvent(current, {
+          ...event,
+          courseId: activeCourseId,
+        }),
+      );
     },
-    [updateActiveState],
+    [activeCourseId, updateActiveState],
   );
 
   const recordActivitySeen = useCallback(

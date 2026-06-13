@@ -4,10 +4,52 @@ Last updated: 2026-06-13
 
 ## Status
 
-Phase 0 stabilization and Phase 1A storage durability are complete. No course
-vocabulary, examples, visual redesign, or new learning activity was added.
+Phase 0 stabilization, Phase 1A storage durability, and Phase 1B mastery and
+mistake lifecycle are complete. No course vocabulary, examples, visual
+redesign, or new learning activity was added.
 
 ## Completed fixes
+
+### Mastery correctness
+
+- replaced lifetime percent-correct mastery with confidence-weighted evidence
+- keeps mastery between 0 and 100
+- separates vocabulary, listening, sentence building, grammar, and
+  dialogue/context evidence per concept
+- distinguishes recognition, recall, and contextual responses
+- first-attempt correctness receives full evidence while retries receive
+  reduced evidence
+- review success receives a modest evidence boost
+- confidence requires repeated evidence, so one lucky answer cannot create
+  high mastery
+- repeated mistakes reduce weighted accuracy without becoming permanent
+- later first-attempt and review successes can restore mastery
+- displayed mastery applies deterministic recency factors
+- story ordering does not mutate vocabulary or concept mastery
+- story comprehension is attributed to dialogue/context only when it directly
+  tests an expression
+- unit mastery and adaptive review use the shared mastery selectors
+- added visible unit skill breakdowns
+- renamed activity-card lifetime best score so it is no longer mislabeled as
+  mastery
+- documented the full formula in `docs/mastery-model.md`
+
+### Mistake lifecycle
+
+- added `new`, `practicing`, `improved`, and `resolved` states
+- records user answer, correct answer, explanation, course, world, unit,
+  activity, skill, concept, and timestamps
+- groups repeated mistakes by concept instead of creating duplicate entries
+- immediate retry practice cannot falsely resolve a mistake
+- later first-attempt successes improve and eventually resolve mistakes
+- two successes including a review, or three later successes, resolve a record
+- one isolated post-resolution error does not reopen a mistake
+- two meaningful post-resolution errors reopen it as practicing
+- resolved mistakes leave normal Mistake Replay and receive a strong Daily
+  Review priority reduction
+- added status, course, and skill filters
+- added selected-concept focused practice, including explicit resolved review
+- legacy mistakes migrate to safe practicing records without losing counts
 
 ### Storage durability and progress backup
 
@@ -132,6 +174,13 @@ vocabulary, examples, visual redesign, or new learning activity was added.
 
 ### Tests and state tracking
 
+- `docs/mastery-model.md`
+- `src/engine/mastery.ts`
+- `src/engine/mistakeLifecycle.ts`
+- `src/engine/adaptiveReviewEngine.ts`
+- `src/screens/MistakeNotebookScreen.tsx`
+- `tests/mastery.test.ts`
+- `tests/mistakeLifecycle.test.ts`
 - `src/components/AppHeader.tsx`
 - `src/components/ProgressDataTools.tsx`
 - `src/state/CourseContext.tsx`
@@ -153,6 +202,21 @@ vocabulary, examples, visual redesign, or new learning activity was added.
 
 ## Tests added
 
+- one-answer mastery confidence cap and 0-100 bounds
+- independent vocabulary, listening, sentence, grammar, and context dimensions
+- reduced retry evidence
+- mastery recovery after an earlier mistake
+- deterministic recency decay
+- story-order mastery exclusion
+- complete answer attribution across course, world, unit, activity, concept,
+  and skill
+- mistake creation with provenance
+- repeated-mistake grouping
+- improvement and resolution
+- immediate-retry non-resolution
+- two-error reopening policy
+- resolved mistake replay exclusion and explicit selected replay
+- legacy mastery and mistake Phase 1B migration
 - invalid saved JSON recovery
 - unavailable localStorage handling
 - storage quota error classification
@@ -190,12 +254,12 @@ vocabulary, examples, visual redesign, or new learning activity was added.
 
 Run on 2026-06-13:
 
-- `npm test`: PASS, 47 passed, 0 failed
+- `npm test`: PASS, 60 passed, 0 failed
 - `npm run lint`: PASS
 - `npm run build`: PASS
-- Vite transformed 1,618 modules
-- output JavaScript approximately 308.70 kB, 96.55 kB gzip
-- output CSS approximately 80.83 kB, 16.14 kB gzip
+- Vite transformed 1,620 modules
+- output JavaScript approximately 319.29 kB, 99.50 kB gzip
+- output CSS approximately 83.26 kB, 16.53 kB gzip
 
 The in-app browser connection was unavailable during the final smoke-check
 attempt, so no visual browser verification is claimed.
@@ -213,8 +277,6 @@ the app becomes public or receives meaningful traffic.
 - the underlying B1 example coverage remains incomplete; unsupported activities
   are now safely gated instead of inventing content
 - dialogue and story language still needs a later teacher-reviewed content pass
-- the current mastery percentage remains a simple lifetime accuracy estimate
-- mistake records do not yet resolve or archive after recovery
 - tiny adaptive-review pools can still produce weak choice sets
 - navigation has no URL history or active-session recovery
 - drawer and search focus management remains incomplete
@@ -224,12 +286,16 @@ the app becomes public or receives meaningful traffic.
   data; downloaded JSON exports remain the durable off-device/manual copy
 - imports replace both courses rather than merging individual records
 - there is no cloud synchronization or cross-device account backup
+- mastery weights and resolution thresholds are deterministic product defaults
+  and still need longitudinal learner-data calibration
+- resolved mistakes remain in local history indefinitely; there is no manual
+  archive/delete action
 
 ## Exact next phase
 
-Begin Phase 1B: progress semantics only.
+Begin Phase 1C: remaining progress semantics only.
 
-The exact next implementation step is to define shared selectors that
-separately calculate coverage, completed sessions, score, stars, and mastery.
-Then rename the current lifetime mastery percentage to accuracy in the UI and
-tests before adding confidence-weighted mastery or resolved-mistake rules.
+The exact next implementation step is to define shared selectors and UI copy
+that clearly separate coverage, completed sessions, activity score, stars, and
+mastery across the map and activity hub. Then derive reward previews from the
+actual generated session without changing course content or adding activities.

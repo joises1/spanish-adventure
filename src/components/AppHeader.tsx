@@ -247,7 +247,14 @@ export function AppHeader({
                 <BookMarked size={20} aria-hidden="true" />
                 <span>
                   <strong>Mistake Notebook</strong>
-                  <small>{Object.keys(state.mistakes).length} corrections</small>
+                  <small>
+                    {
+                      Object.values(state.mistakes).filter(
+                        (mistake) => mistake.status !== "resolved",
+                      ).length
+                    }{" "}
+                    active corrections
+                  </small>
                 </span>
               </button>
             </div>

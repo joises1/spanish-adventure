@@ -230,3 +230,38 @@ test("streak migration advances at most once for the same calendar day", () => {
   assert.equal(first.streak, 5);
   assert.equal(second.streak, 5);
 });
+
+test("legacy mastery and mistakes gain Phase 1B fields without data loss", () => {
+  const validation = validateGameState(
+    {
+      version: 4,
+      mastery: {
+        hola: {
+          seenCount: 3,
+          correctCount: 2,
+          incorrectCount: 1,
+          masteryEstimate: 67,
+          lastPracticedAt: "2026-06-12T10:00:00.000Z",
+        },
+      },
+      mistakes: {
+        hola: {
+          conceptId: "hola",
+          worldId: "a1-greetings",
+          activityType: "listening",
+          incorrectCount: 2,
+          lastIncorrectAt: "2026-06-12T10:00:00.000Z",
+          correctedAnswer: "hello",
+        },
+      },
+    },
+    "2026-06-12",
+    false,
+  );
+
+  assert.equal(validation.ok, true);
+  assert.equal(validation.state.mastery.hola.skills.vocabulary?.attempts, 3);
+  assert.equal(validation.state.mistakes.hola.correctAnswer, "hello");
+  assert.equal(validation.state.mistakes.hola.status, "practicing");
+  assert.equal(validation.state.mistakes.hola.courseId, "a1-a2");
+});
