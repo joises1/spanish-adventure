@@ -6,7 +6,6 @@ import {
   Map,
   Menu,
   Repeat2,
-  RotateCcw,
   Sparkles,
   Star,
   Trophy,
@@ -21,6 +20,7 @@ import {
 } from "../engine/game";
 import { useGame } from "../state/GameContext";
 import type { Course, World } from "../types";
+import { ProgressDataTools } from "./ProgressDataTools";
 import { VoiceSettings } from "./VoiceSettings";
 
 type AppHeaderProps = {
@@ -46,7 +46,7 @@ export function AppHeader({
   onReturnToCourseSelection,
   compact = false,
 }: AppHeaderProps) {
-  const { resetProgress, state } = useGame();
+  const { state } = useGame();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const currentWorldIndex = getCurrentWorldIndex(state, worlds);
   const currentWorld = worlds[currentWorldIndex] ?? worlds[0];
@@ -92,17 +92,6 @@ export function AppHeader({
   const openDailyReview = () => {
     setIsDrawerOpen(false);
     onOpenDailyReview();
-  };
-
-  const handleReset = () => {
-    const confirmed = window.confirm(
-      "Reset all progress? This clears your XP, streak, stars, review history, and learning collection.",
-    );
-    if (!confirmed) return;
-
-    resetProgress();
-    setIsDrawerOpen(false);
-    onMap();
   };
 
   return (
@@ -265,17 +254,13 @@ export function AppHeader({
 
             <VoiceSettings embedded />
 
-            <button
-              className="drawer-reset-button"
-              type="button"
-              onClick={handleReset}
-            >
-              <RotateCcw size={17} aria-hidden="true" />
-              <span>
-                <strong>Reset progress</strong>
-                <small>Start the adventure again</small>
-              </span>
-            </button>
+            <ProgressDataTools
+              course={course}
+              onProgressChanged={() => {
+                setIsDrawerOpen(false);
+                onMap();
+              }}
+            />
           </aside>
         </div>
       )}

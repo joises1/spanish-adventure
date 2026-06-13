@@ -7,12 +7,16 @@ import {
   useState,
 } from "react";
 import type { CourseId } from "../types";
+import { browserStorage } from "./storage";
 
 const SELECTED_COURSE_KEY = "spanish-adventure-selected-course-v1";
 
 const loadSelectedCourse = (): CourseId | null => {
-  const saved = localStorage.getItem(SELECTED_COURSE_KEY);
-  return saved === "a1-a2" || saved === "b1" ? saved : null;
+  const result = browserStorage.read(SELECTED_COURSE_KEY);
+  if (!result.ok) return null;
+  return result.value === "a1-a2" || result.value === "b1"
+    ? result.value
+    : null;
 };
 
 type CourseContextValue = {
@@ -27,7 +31,7 @@ export function CourseProvider({ children }: PropsWithChildren) {
     useState<CourseId | null>(loadSelectedCourse);
 
   const selectCourse = useCallback((courseId: CourseId) => {
-    localStorage.setItem(SELECTED_COURSE_KEY, courseId);
+    browserStorage.write(SELECTED_COURSE_KEY, courseId);
     setSelectedCourseId(courseId);
   }, []);
 

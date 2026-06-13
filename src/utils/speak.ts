@@ -1,3 +1,5 @@
+import { browserStorage } from "../state/storage";
+
 const audioCache = new Map<string, string>();
 const pendingAudio = new Map<string, Promise<string>>();
 const failedAudio = new Set<string>();
@@ -81,19 +83,12 @@ const loadBrowserVoices = async () =>
   getEligibleVoices(await loadAllBrowserVoices());
 
 export const getSavedBrowserVoiceId = () => {
-  try {
-    return localStorage.getItem(BROWSER_VOICE_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  const result = browserStorage.read(BROWSER_VOICE_STORAGE_KEY);
+  return result.ok ? result.value : null;
 };
 
 export const saveBrowserVoiceId = (voiceId: string) => {
-  try {
-    localStorage.setItem(BROWSER_VOICE_STORAGE_KEY, voiceId);
-  } catch {
-    // Voice selection still works for the current page if storage is blocked.
-  }
+  browserStorage.write(BROWSER_VOICE_STORAGE_KEY, voiceId);
 };
 
 export const getBrowserVoiceOptions = async (): Promise<
